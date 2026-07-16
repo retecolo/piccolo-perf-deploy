@@ -1,0 +1,10 @@
+{
+  "topology": "mesh",
+  "config_refresh": "5m",
+  "hide_skipped": false,
+  "hosts": {{ piccolo_perf_hosts | to_nice_json(indent=2) | indent(2) }},
+  "hub_spoke": { "enabled": false, "hub": "" },
+  "measurements": {{ piccolo_perf_measurements | to_nice_json(indent=2) | indent(2) }},
+  "influxdb": { "url": "", "token": "", "org": "", "bucket": "" },
+  "local_store": { "enabled": false, "path": "/var/lib/piccolo-perf/results.jsonl", "max_lines": 10000 }
+}

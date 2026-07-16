@@ -1,0 +1,15 @@
+server {
+  listen [{{ mesh_ipv6 }}]:{{ config_server_port }} ssl;
+  ssl_certificate {{ config_server_tls_dir }}/fullchain.pem;
+  ssl_certificate_key {{ config_server_tls_dir }}/privkey.pem;
+
+  root {{ config_server_www_dir }};
+
+  location = /piccolo-config.json {
+    default_type application/json;
+  }
+
+  location / {
+    return 404;
+  }
+}

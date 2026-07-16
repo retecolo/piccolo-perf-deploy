@@ -1,0 +1,63 @@
+---
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 0
+
+    - name: Install prerequisites present in the test image
+      ansible.builtin.package:
+        name: [iproute2, openssl, curl]
+        state: present
+
+    - name: Create a dummy interface to simulate the mesh VPN
+      ansible.builtin.command: ip link add dummy0 type dummy
+      register: dummy_link
+      changed_when: dummy_link.rc == 0
+      failed_when: dummy_link.rc != 0 and 'File exists' not in dummy_link.stderr
+
+    - name: Bring the dummy interface up
+      ansible.builtin.command: ip link set dummy0 up
+      changed_when: false
+
+    - name: Assign a ULA IPv6 address to the dummy interface
+      ansible.builtin.command: ip -6 addr add fd00:dead:beef::30/64 dev dummy0
+      register: dummy_addr
+      changed_when: dummy_addr.rc == 0
+      failed_when: dummy_addr.rc != 0 and 'File exists' not in dummy_addr.stderr
+
+    - name: Ensure the TLS staging directory exists
+      ansible.builtin.file:
+        path: /etc/letsencrypt/live/mesh.example.net
+        state: directory
+        mode: "0755"
+
+    - name: Generate a self-signed test certificate
+      ansible.builtin.command: >
+        openssl req -x509 -newkey rsa:2048 -nodes -days 1
+        -keyout /etc/letsencrypt/live/mesh.example.net/privkey.pem
+        -out /etc/letsencrypt/live/mesh.example.net/fullchain.pem
+        -subj "/CN=config-server-test.mesh.example.net"
+        -addext "subjectAltName=DNS:config-server-test.mesh.example.net,IP:fd00:dead:beef::30"
+      args:
+        creates: /etc/letsencrypt/live/mesh.example.net/fullchain.pem
+
+    - name: Trust the test certificate as a CA
+      ansible.builtin.copy:
+        src: /etc/letsencrypt/live/mesh.example.net/fullchain.pem
+        dest: /usr/local/share/ca-certificates/config-server-test.crt
+        remote_src: true
+        mode: "0644"
+
+    - name: Refresh the system CA trust store
+      ansible.builtin.command: update-ca-certificates
+      changed_when: true
+
+    - name: Map the test mesh hostname to the dummy interface address
+      ansible.builtin.shell: |
+        grep -q 'config-server-test.mesh.example.net' /etc/hosts || \
+          echo 'fd00:dead:beef::30 config-server-test.mesh.example.net' >> /etc/hosts
+      changed_when: false

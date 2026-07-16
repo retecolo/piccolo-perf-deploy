@@ -1,0 +1,41 @@
+---
+- name: Ensure nftables is installed
+  ansible.builtin.package:
+    name: nftables
+    state: present
+
+- name: Ensure nftables.d include directory exists
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure the include directive is present in nftables.conf
+  ansible.builtin.shell: |
+    grep -q 'nftables.d' /etc/nftables.conf || \
+      echo 'include "/etc/nftables.d/*.nft"' >> /etc/nftables.conf
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Deploy the config-server mesh-only firewall rule
+  ansible.builtin.template:
+    src: config-server.nft.j2
+    dest: /etc/nftables.d/config-server.nft
+    owner: root
+    group: root
+    mode: "0644"
+  register: config_server_nft
+
+- name: Enable nftables
+  ansible.builtin.systemd:
+    name: nftables
+    enabled: true
+    state: started
+
+- name: Apply the updated ruleset
+  ansible.builtin.command: nft -f /etc/nftables.conf
+  when: config_server_nft.changed
+  changed_when: true

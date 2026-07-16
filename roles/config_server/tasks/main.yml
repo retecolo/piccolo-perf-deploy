@@ -1,0 +1,81 @@
+---
+- name: Resolve this host's mesh VPN IPv6 address
+  ansible.builtin.set_fact:
+    mesh_ipv6: "{{ (ansible_facts[mesh_iface]['ipv6'] | selectattr('scope', 'ne', 'link') | first).address }}"
+
+- name: Fail fast if no mesh IPv6 address was found
+  ansible.builtin.assert:
+    that:
+      - mesh_ipv6 is defined
+      - mesh_ipv6 | length > 0
+    fail_msg: "No non-link-local IPv6 address found on mesh interface '{{ mesh_iface }}'"
+
+- name: Install nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Ensure the config server parent and www directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ config_server_www_dir | dirname }}", mode: "0755" }
+    - { path: "{{ config_server_www_dir }}", mode: "0755" }
+
+- name: Deploy the fleet topology config
+  ansible.builtin.template:
+    src: piccolo-config.json.j2
+    dest: "{{ config_server_www_dir }}/piccolo-config.json"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure the nginx systemd drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/nginx.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the mesh-VPN ordering drop-in for nginx
+  ansible.builtin.template:
+    src: piccolo-fleet-mesh.conf.j2
+    dest: /etc/systemd/system/nginx.service.d/piccolo-fleet.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: config_server_dropin
+
+- name: Reload systemd if the drop-in changed
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: config_server_dropin.changed
+
+- name: Deploy the config-server HTTPS vhost
+  ansible.builtin.template:
+    src: config-server.conf.j2
+    dest: /etc/nginx/conf.d/piccolo-fleet-config-server.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload nginx
+
+- name: Remove the nginx default site to avoid vhost conflicts
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: reload nginx
+
+- name: Enable and start nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started
+
+- name: Restrict the config server port to the mesh interface
+  ansible.builtin.import_tasks: firewall.yml

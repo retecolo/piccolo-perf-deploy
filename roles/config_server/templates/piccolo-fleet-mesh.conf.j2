@@ -1,0 +1,4 @@
+[Unit]
+After=network-online.target {{ mesh_vpn_service }}
+Wants=network-online.target
+BindsTo={{ mesh_vpn_service }}

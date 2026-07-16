@@ -1,0 +1,4 @@
+---
+config_server_port: 8443
+config_server_www_dir: /etc/piccolo-fleet/www
+config_server_tls_dir: /etc/piccolo-fleet/tls

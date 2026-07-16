@@ -1,0 +1,6 @@
+---
+- name: Deploy the HTTPS config server for the fleet
+  hosts: config_server_hosts
+  become: true
+  roles:
+    - config_server

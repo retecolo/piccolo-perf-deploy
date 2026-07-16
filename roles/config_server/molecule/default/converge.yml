@@ -1,0 +1,26 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  pre_tasks:
+    - name: Stage the TLS directory (simulates cert-distribute.yml)
+      ansible.builtin.file:
+        path: /etc/piccolo-fleet/tls
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Copy the test cert into place
+      ansible.builtin.copy:
+        src: "/etc/letsencrypt/live/mesh.example.net/{{ item }}"
+        dest: "/etc/piccolo-fleet/tls/{{ item }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0640"
+      loop:
+        - fullchain.pem
+        - privkey.pem
+  roles:
+    - config_server
