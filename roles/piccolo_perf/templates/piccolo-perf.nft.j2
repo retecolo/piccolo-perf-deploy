@@ -1,0 +1,8 @@
+table inet piccolo_fleet_perf {
+  chain input {
+    type filter hook input priority filter; policy accept;
+    iifname "lo" accept
+    iifname != "{{ mesh_iface }}" tcp dport {{ piccolo_perf_metrics_port }} drop
+    iifname != "{{ mesh_iface }}" udp dport {{ piccolo_perf_twamp_port }} drop
+  }
+}

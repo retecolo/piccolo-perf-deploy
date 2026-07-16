@@ -1,0 +1,6 @@
+---
+- name: Deploy and harden piccolo-perf across the fleet
+  hosts: piccolo_perf
+  become: true
+  roles:
+    - piccolo_perf

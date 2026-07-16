@@ -65,3 +65,14 @@
       ansible.builtin.assert:
         that:
           - "'piccolo-perf-test' in metrics_check.content"
+
+    - name: Read the deployed nftables ruleset
+      ansible.builtin.command: nft list ruleset
+      register: piccolo_perf_nft_ruleset
+      changed_when: false
+
+    - name: Assert the mesh-only restriction is present for the metrics port
+      ansible.builtin.assert:
+        that:
+          - "'piccolo_fleet_perf' in piccolo_perf_nft_ruleset.stdout"
+          - "(piccolo_perf_metrics_port | string) in piccolo_perf_nft_ruleset.stdout"

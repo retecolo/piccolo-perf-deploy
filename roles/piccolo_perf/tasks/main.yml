@@ -18,3 +18,6 @@
 
 - name: Deploy piccolo-perf systemd unit
   ansible.builtin.import_tasks: service.yml
+
+- name: Restrict piccolo-perf metrics port to the mesh interface
+  ansible.builtin.import_tasks: firewall.yml
