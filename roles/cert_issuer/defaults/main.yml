@@ -1,0 +1,12 @@
+---
+cert_issuer_acme_email: "admin@{{ mesh_domain }}"
+cert_issuer_dns_plugin_name: cloudflare
+cert_issuer_certbot_authenticator: "dns-{{ cert_issuer_dns_plugin_name }}"
+cert_issuer_certbot_dns_package: "python3-certbot-dns-{{ cert_issuer_dns_plugin_name }}"
+cert_issuer_dns_credentials_path: /etc/letsencrypt/dns-credentials.ini
+# Set via Ansible Vault — contents of the certbot DNS plugin's credentials file,
+# e.g. "dns_cloudflare_api_token = <token>" for the Cloudflare plugin.
+cert_issuer_dns_credentials_content: ""
+cert_issuer_deploy_hook_path: /usr/local/sbin/piccolo-cert-deploy-hook.sh
+cert_issuer_playbook_dir: /opt/piccolo-fleet
+cert_issuer_inventory_path: inventory/hosts.ini

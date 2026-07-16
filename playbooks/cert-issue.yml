@@ -1,0 +1,6 @@
+---
+- name: Issue/renew the piccolo-fleet wildcard certificate
+  hosts: cert_issuer_hosts
+  become: true
+  roles:
+    - cert_issuer

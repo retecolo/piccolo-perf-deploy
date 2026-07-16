@@ -1,0 +1,10 @@
+---
+exclude_paths:
+  - roles/*/molecule/
+
+warn_list:
+  - no-handler
+  - name[casing]
+
+skip_list:
+  - var-naming[no-role-prefix]

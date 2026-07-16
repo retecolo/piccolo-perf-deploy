@@ -1,0 +1,65 @@
+---
+- name: Fail fast if DNS credentials are not configured
+  ansible.builtin.assert:
+    that:
+      - cert_issuer_dns_credentials_content | length > 0
+    fail_msg: "Set cert_issuer_dns_credentials_content via Ansible Vault before running this role."
+
+- name: Install certbot and the DNS plugin package
+  ansible.builtin.package:
+    name:
+      - certbot
+      - "{{ cert_issuer_certbot_dns_package }}"
+    state: present
+
+- name: Write the certbot DNS credentials file
+  ansible.builtin.copy:
+    dest: "{{ cert_issuer_dns_credentials_path }}"
+    content: "{{ cert_issuer_dns_credentials_content }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Template the post-renewal distribution trigger
+  ansible.builtin.template:
+    src: deploy-hook.sh.j2
+    dest: "{{ cert_issuer_deploy_hook_path }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Issue or renew the wildcard certificate
+  ansible.builtin.command: >-
+    certbot certonly --non-interactive --agree-tos
+    --email {{ cert_issuer_acme_email }}
+    --preferred-challenges dns
+    --authenticator {{ cert_issuer_certbot_authenticator }}
+    --{{ cert_issuer_certbot_authenticator }}-credentials {{ cert_issuer_dns_credentials_path }}
+    -d "*.{{ mesh_domain }}"
+    --cert-name {{ mesh_domain }}
+    --deploy-hook {{ cert_issuer_deploy_hook_path }}
+  register: cert_issuer_result
+  changed_when: "'Certificate not yet due for renewal' not in cert_issuer_result.stdout"
+
+- name: Template the renewal timer unit
+  ansible.builtin.template:
+    src: piccolo-cert-renew.timer.j2
+    dest: /etc/systemd/system/piccolo-cert-renew.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - reload systemd and enable cert timer
+    - enable cert timer
+
+- name: Template the renewal service unit
+  ansible.builtin.template:
+    src: piccolo-cert-renew.service.j2
+    dest: /etc/systemd/system/piccolo-cert-renew.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - reload systemd and enable cert timer
+    - enable cert timer

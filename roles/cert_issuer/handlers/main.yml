@@ -1,0 +1,10 @@
+---
+- name: reload systemd and enable cert timer
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: enable cert timer
+  ansible.builtin.systemd:
+    name: piccolo-cert-renew.timer
+    enabled: true
+    state: started

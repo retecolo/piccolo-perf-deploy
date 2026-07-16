@@ -1,0 +1,82 @@
+---
+- name: Distribute the renewed wildcard certificate to the fleet
+  hosts: piccolo_perf:prometheus_hosts:config_server_hosts
+  become: true
+  vars:
+    live_dir: "/etc/letsencrypt/live/{{ mesh_domain }}"
+  tasks:
+    - name: Copy fullchain to piccolo-perf hosts
+      ansible.builtin.copy:
+        src: "{{ live_dir }}/fullchain.pem"
+        dest: "{{ piccolo_perf_tls_dir }}/fullchain.pem"
+        owner: root
+        group: "{{ piccolo_perf_cert_group }}"
+        mode: "0640"
+      when: "'piccolo_perf' in group_names"
+      notify: restart piccolo-perf
+
+    - name: Copy privkey to piccolo-perf hosts
+      ansible.builtin.copy:
+        src: "{{ live_dir }}/privkey.pem"
+        dest: "{{ piccolo_perf_tls_dir }}/privkey.pem"
+        owner: root
+        group: "{{ piccolo_perf_cert_group }}"
+        mode: "0640"
+      when: "'piccolo_perf' in group_names"
+      notify: restart piccolo-perf
+
+    - name: Copy fullchain to prometheus hosts
+      ansible.builtin.copy:
+        src: "{{ live_dir }}/fullchain.pem"
+        dest: "{{ tls_cert_dir_prometheus }}/fullchain.pem"
+        owner: prometheus
+        group: prometheus
+        mode: "0640"
+      when: "'prometheus_hosts' in group_names"
+      notify: restart prometheus
+
+    - name: Copy privkey to prometheus hosts
+      ansible.builtin.copy:
+        src: "{{ live_dir }}/privkey.pem"
+        dest: "{{ tls_cert_dir_prometheus }}/privkey.pem"
+        owner: prometheus
+        group: prometheus
+        mode: "0640"
+      when: "'prometheus_hosts' in group_names"
+      notify: restart prometheus
+
+    - name: Copy fullchain to the config server host
+      ansible.builtin.copy:
+        src: "{{ live_dir }}/fullchain.pem"
+        dest: "{{ config_server_tls_dir }}/fullchain.pem"
+        owner: root
+        group: root
+        mode: "0644"
+      when: "'config_server_hosts' in group_names"
+      notify: reload nginx on config server
+
+    - name: Copy privkey to the config server host
+      ansible.builtin.copy:
+        src: "{{ live_dir }}/privkey.pem"
+        dest: "{{ config_server_tls_dir }}/privkey.pem"
+        owner: root
+        group: root
+        mode: "0640"
+      when: "'config_server_hosts' in group_names"
+      notify: reload nginx on config server
+
+  handlers:
+    - name: restart piccolo-perf
+      ansible.builtin.systemd:
+        name: "{{ piccolo_perf_service_name }}"
+        state: restarted
+
+    - name: restart prometheus
+      ansible.builtin.systemd:
+        name: prometheus
+        state: restarted
+
+    - name: reload nginx on config server
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded

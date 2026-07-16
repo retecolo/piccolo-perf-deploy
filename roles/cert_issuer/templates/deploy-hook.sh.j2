@@ -1,0 +1,5 @@
+#!/bin/sh
+# Triggered by certbot only when a certificate was actually issued or renewed.
+set -e
+cd {{ cert_issuer_playbook_dir }}
+ansible-playbook -i {{ cert_issuer_inventory_path }} playbooks/cert-distribute.yml

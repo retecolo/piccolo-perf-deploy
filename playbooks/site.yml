@@ -1,0 +1,9 @@
+---
+- name: Deploy the full piccolo-perf fleet stack
+  ansible.builtin.import_playbook: piccolo-perf.yml
+
+- name: Deploy the config server
+  ansible.builtin.import_playbook: config-server.yml
+
+- name: Deploy hardened Prometheus
+  ansible.builtin.import_playbook: prometheus.yml

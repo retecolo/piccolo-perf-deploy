@@ -1,0 +1,55 @@
+---
+- name: Smoke-test piccolo-perf exporters over the mesh interface
+  hosts: piccolo_perf
+  become: false
+  gather_facts: true
+  tasks:
+    - name: Resolve mesh IPv6 for this host
+      ansible.builtin.set_fact:
+        mesh_ipv6: "{{ (ansible_facts[mesh_iface]['ipv6'] | selectattr('scope', 'ne', 'link') | first).address }}"
+
+    - name: Curl /metrics over HTTPS via the mesh hostname
+      ansible.builtin.uri:
+        url: "https://{{ inventory_hostname }}.{{ mesh_domain }}:{{ piccolo_perf_metrics_port }}/metrics"
+        return_content: false
+        status_code: 200
+
+- name: Smoke-test the config server over the mesh interface
+  hosts: config_server_hosts
+  become: false
+  gather_facts: true
+  tasks:
+    - name: Curl the topology JSON over HTTPS via the mesh hostname
+      ansible.builtin.uri:
+        url: "https://{{ inventory_hostname }}.{{ mesh_domain }}:{{ config_server_port }}/piccolo-config.json"
+        return_content: false
+        status_code: 200
+
+- name: Smoke-test Prometheus over the mesh interface
+  hosts: prometheus_hosts
+  become: false
+  gather_facts: true
+  tasks:
+    - name: Curl /-/healthy over HTTPS with basic auth via the mesh hostname
+      ansible.builtin.uri:
+        url: "https://{{ inventory_hostname }}.{{ mesh_domain }}:9090/-/healthy"
+        user: "{{ prometheus_basic_auth_username }}"
+        password: "{{ prometheus_basic_auth_password }}"
+        force_basic_auth: true
+        status_code: 200
+
+    - name: Curl the piccolo_perf scrape targets and confirm they're up
+      ansible.builtin.uri:
+        url: "https://{{ inventory_hostname }}.{{ mesh_domain }}:9090/api/v1/query?query=up%7Bjob%3D%22piccolo_perf%22%7D"
+        user: "{{ prometheus_basic_auth_username }}"
+        password: "{{ prometheus_basic_auth_password }}"
+        force_basic_auth: true
+        status_code: 200
+        return_content: true
+      register: prometheus_up_query
+
+    - name: Assert every piccolo_perf target reports up == 1
+      ansible.builtin.assert:
+        that:
+          - "'\"value\":[' in prometheus_up_query.content"
+          - "'\"1\"]' in prometheus_up_query.content"

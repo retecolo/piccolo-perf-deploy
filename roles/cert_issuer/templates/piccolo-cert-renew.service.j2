@@ -1,0 +1,6 @@
+[Unit]
+Description=Run certbot renew for the piccolo-fleet wildcard certificate
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/certbot renew --non-interactive --deploy-hook {{ cert_issuer_deploy_hook_path }}
