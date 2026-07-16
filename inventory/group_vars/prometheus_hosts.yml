@@ -1,0 +1,7 @@
+---
+prometheus_version: "2.53.1"
+prometheus_basic_auth_username: admin
+# prometheus_basic_auth_password_hash MUST be set via Ansible Vault, e.g.:
+#   ansible-vault create inventory/group_vars/prometheus_hosts/vault.yml
+# Generate the bcrypt hash with: htpasswd -nbBC 10 admin '<password>'
+# prometheus_basic_auth_password_hash: "$2y$10$..."

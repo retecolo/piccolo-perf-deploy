@@ -1,0 +1,17 @@
+---
+# Interface name is assumed consistent across the whole fleet (per mesh VPN setup).
+mesh_iface: wg0
+mesh_domain: mesh.example.net
+# systemd unit name for the mesh VPN, used for After=/BindsTo= ordering so
+# services rebind correctly if the tunnel restarts or comes up late at boot.
+mesh_vpn_service: "wg-quick@wg0.service"
+
+# Fleet topology, shared by the config_server role (serves it as JSON) and
+# used by prometheus_hardened's scrape config. Edit to match your fleet.
+piccolo_perf_hosts:
+  - { name: probe-a, address: "fd00:dead:beef::1", site: site-a }
+  - { name: probe-b, address: "fd00:dead:beef::2", site: site-b }
+
+piccolo_perf_measurements:
+  - { type: twamp, interval: 60s, targets: all, burst_size: 5, burst_interval: 200ms, packet_timeout: 5s }
+  - { type: dns, interval: 120s, resolvers: ["2620:fe::fe", "9.9.9.9"], names: ["example.com"] }
