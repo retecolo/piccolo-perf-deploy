@@ -1,0 +1,7 @@
+table inet piccolo_fleet_prometheus {
+  chain input {
+    type filter hook input priority filter; policy accept;
+    iifname "lo" accept
+    iifname != "{{ mesh_iface }}" tcp dport {{ prometheus_web_port }} drop
+  }
+}

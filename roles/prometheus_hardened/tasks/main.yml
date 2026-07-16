@@ -1,0 +1,54 @@
+---
+- name: Ensure the prometheus system group exists
+  ansible.builtin.group:
+    name: prometheus
+    system: true
+    state: present
+
+- name: Ensure the prometheus system user exists
+  ansible.builtin.user:
+    name: prometheus
+    group: prometheus
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ prometheus_data_dir }}"
+    create_home: false
+
+- name: Ensure prometheus directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: "0750"
+  loop:
+    - "{{ prometheus_config_dir }}"
+    - "{{ prometheus_data_dir }}"
+    - "{{ tls_cert_dir_prometheus }}"
+
+- name: Resolve this host's mesh VPN IPv6 address
+  ansible.builtin.set_fact:
+    mesh_ipv6: "{{ (ansible_facts[mesh_iface]['ipv6'] | selectattr('scope', 'ne', 'link') | first).address }}"
+
+- name: Fail fast if no mesh IPv6 address was found
+  ansible.builtin.assert:
+    that:
+      - mesh_ipv6 is defined
+      - mesh_ipv6 | length > 0
+    fail_msg: "No non-link-local IPv6 address found on mesh interface '{{ mesh_iface }}'"
+
+- name: Fail fast if basic auth credentials are not configured
+  ansible.builtin.assert:
+    that:
+      - prometheus_basic_auth_password_hash is defined
+      - prometheus_basic_auth_password_hash | length > 0
+    fail_msg: "Set prometheus_basic_auth_password_hash via Ansible Vault before running this role."
+
+- name: Install prometheus
+  ansible.builtin.import_tasks: install.yml
+
+- name: Harden prometheus
+  ansible.builtin.import_tasks: harden.yml
+
+- name: Restrict Prometheus web port to the mesh interface
+  ansible.builtin.import_tasks: firewall.yml

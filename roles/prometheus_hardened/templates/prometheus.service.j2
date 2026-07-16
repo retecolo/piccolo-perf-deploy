@@ -1,0 +1,23 @@
+[Unit]
+Description=Prometheus
+After=network-online.target {{ mesh_vpn_service }}
+Wants=network-online.target
+BindsTo={{ mesh_vpn_service }}
+
+[Service]
+User=prometheus
+Group=prometheus
+ExecStart={{ prometheus_binary_path }} \
+  --config.file={{ prometheus_config_dir }}/prometheus.yml \
+  --storage.tsdb.path={{ prometheus_data_dir }} \
+  --web.listen-address=[{{ mesh_ipv6 }}]:{{ prometheus_web_port }} \
+  --web.config.file={{ prometheus_config_dir }}/web.config.yml
+Restart=on-failure
+RestartSec=10s
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths={{ prometheus_data_dir }}
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

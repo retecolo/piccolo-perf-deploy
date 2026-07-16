@@ -1,0 +1,70 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Re-derive mesh_ipv6 for this verification play
+      ansible.builtin.set_fact:
+        mesh_ipv6: "{{ (ansible_facts[mesh_iface]['ipv6'] | selectattr('scope', 'ne', 'link') | first).address }}"
+
+    - name: Assert the mesh IPv6 address was resolved
+      ansible.builtin.assert:
+        that:
+          - mesh_ipv6 == "fd00:dead:beef::20"
+
+    - name: Assert the prometheus system user exists
+      ansible.builtin.command: id prometheus
+      register: prometheus_user_check
+      changed_when: false
+
+    - name: Check the installed prometheus version
+      ansible.builtin.command: /usr/local/bin/prometheus --version
+      register: prometheus_version_check
+      changed_when: false
+
+    - name: Assert the pinned version replaced the stale fixture install
+      ansible.builtin.assert:
+        that:
+          - "'3.13.1' in prometheus_version_check.stdout"
+
+    - name: Assert prometheus is listening only on the mesh IPv6 address
+      ansible.builtin.command: ss -H -6 -l -n -p sport = :9090
+      register: prometheus_listeners
+      changed_when: false
+
+    - name: Assert the listener is scoped to the mesh address, not a wildcard
+      ansible.builtin.assert:
+        that:
+          - mesh_ipv6 in prometheus_listeners.stdout
+          - "'[::]:9090' not in prometheus_listeners.stdout"
+
+    - name: Assert /-/healthy is reachable over HTTPS with basic auth
+      ansible.builtin.uri:
+        url: "https://prometheus-test.mesh.example.net:9090/-/healthy"
+        user: testadmin
+        password: "MoleculeTestPass123!"
+        force_basic_auth: true
+        status_code: 200
+
+    - name: Assert /-/healthy rejects requests without credentials
+      ansible.builtin.uri:
+        url: "https://prometheus-test.mesh.example.net:9090/-/healthy"
+        status_code: 401
+      register: prometheus_noauth_check
+      failed_when: prometheus_noauth_check.status != 401
+
+    - name: Assert plain HTTP is refused (TLS-only)
+      ansible.builtin.uri:
+        url: "http://prometheus-test.mesh.example.net:9090/-/healthy"
+      register: prometheus_http_check
+      failed_when: prometheus_http_check.failed is not true
+
+    - name: Read the deployed nftables ruleset
+      ansible.builtin.command: nft list ruleset
+      register: prometheus_nft_ruleset
+      changed_when: false
+
+    - name: Assert the mesh-only restriction is present for the web port
+      ansible.builtin.assert:
+        that:
+          - "'piccolo_fleet_prometheus' in prometheus_nft_ruleset.stdout"

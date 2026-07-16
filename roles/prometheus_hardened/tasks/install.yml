@@ -1,0 +1,50 @@
+---
+- name: Check installed prometheus version
+  ansible.builtin.command: "{{ prometheus_binary_path }} --version"
+  register: prometheus_installed_version
+  changed_when: false
+  failed_when: false
+
+- name: Download and install Prometheus {{ prometheus_version }}
+  when: prometheus_version not in (prometheus_installed_version.stdout | default(''))
+  block:
+    - name: Download sha256sums.txt
+      ansible.builtin.get_url:
+        url: "{{ prometheus_checksums_url }}"
+        dest: "/tmp/prometheus-sha256sums-{{ prometheus_version }}.txt"
+        mode: "0644"
+
+    - name: Extract expected checksum for this platform's asset
+      ansible.builtin.shell: |
+        set -o pipefail
+        grep '{{ prometheus_asset_name }}' /tmp/prometheus-sha256sums-{{ prometheus_version }}.txt | awk '{print $1}'
+      args:
+        executable: /bin/bash
+      register: prometheus_expected_checksum
+      changed_when: false
+
+    - name: Download and verify the Prometheus release archive
+      ansible.builtin.get_url:
+        url: "{{ prometheus_release_url }}"
+        dest: "/root/{{ prometheus_asset_name }}"
+        checksum: "sha256:{{ prometheus_expected_checksum.stdout }}"
+        mode: "0644"
+
+    - name: Extract the Prometheus archive
+      ansible.builtin.unarchive:
+        src: "/root/{{ prometheus_asset_name }}"
+        dest: /root
+        remote_src: true
+
+    - name: Install the prometheus and promtool binaries
+      ansible.builtin.copy:
+        src: "/root/{{ prometheus_asset_dir_name }}/{{ item }}"
+        dest: "/usr/local/bin/{{ item }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - prometheus
+        - promtool
+      notify: restart prometheus

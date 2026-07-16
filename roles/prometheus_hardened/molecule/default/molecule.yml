@@ -1,0 +1,42 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: docker
+platforms:
+  - name: prometheus-test
+    image: geerlingguy/docker-debian12-ansible:latest
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/..
+  config_options:
+    defaults:
+      remote_tmp: /tmp/.ansible/tmp
+  connection_options:
+    ansible_connection: docker
+  inventory:
+    host_vars:
+      prometheus-test:
+        mesh_iface: dummy0
+        mesh_vpn_service: network.target
+        mesh_domain: mesh.example.net
+        prometheus_version: "3.13.1"
+        prometheus_basic_auth_username: testadmin
+        # bcrypt hash of "MoleculeTestPass123!" — test fixture only, never used in production
+        prometheus_basic_auth_password_hash: "$$2y$$05$$pXUyOMm458Efr4FtUBxswenyEACsw8CwDfxotUtSTX15bLTfoXd3e"
+        piccolo_perf_hosts:
+          - { name: prometheus-test, address: "fd00:dead:beef::20", site: test }
+        ansible_connection: docker
+verifier:
+  name: ansible

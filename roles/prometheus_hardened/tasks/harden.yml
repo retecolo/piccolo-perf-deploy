@@ -1,0 +1,37 @@
+---
+- name: Deploy the Prometheus scrape configuration
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: prometheus
+    group: prometheus
+    mode: "0640"
+  notify: restart prometheus
+
+- name: Deploy the Prometheus TLS + basic auth web config
+  ansible.builtin.template:
+    src: web.config.yml.j2
+    dest: "{{ prometheus_config_dir }}/web.config.yml"
+    owner: prometheus
+    group: prometheus
+    mode: "0640"
+  notify: restart prometheus
+
+- name: Deploy the Prometheus systemd unit
+  ansible.builtin.template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart prometheus
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable and start prometheus
+  ansible.builtin.systemd:
+    name: prometheus
+    enabled: true
+    state: started

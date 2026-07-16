@@ -1,0 +1,121 @@
+---
+- name: Prepare
+  hosts: all
+  become: true
+  vars:
+    prometheus_stale_version: "2.50.0"
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 0
+
+    - name: Install prerequisites present in the test image
+      ansible.builtin.package:
+        name: [iproute2, openssl, curl, tar]
+        state: present
+
+    - name: Create a dummy interface to simulate the mesh VPN
+      ansible.builtin.command: ip link add dummy0 type dummy
+      register: dummy_link
+      changed_when: dummy_link.rc == 0
+      failed_when: dummy_link.rc != 0 and 'File exists' not in dummy_link.stderr
+
+    - name: Bring the dummy interface up
+      ansible.builtin.command: ip link set dummy0 up
+      changed_when: false
+
+    - name: Assign a ULA IPv6 address to the dummy interface
+      ansible.builtin.command: ip -6 addr add fd00:dead:beef::20/64 dev dummy0
+      register: dummy_addr
+      changed_when: dummy_addr.rc == 0
+      failed_when: dummy_addr.rc != 0 and 'File exists' not in dummy_addr.stderr
+
+    - name: Ensure the TLS staging directory exists
+      ansible.builtin.file:
+        path: /etc/letsencrypt/live/mesh.example.net
+        state: directory
+        mode: "0755"
+
+    - name: Generate a self-signed test certificate
+      ansible.builtin.command: >
+        openssl req -x509 -newkey rsa:2048 -nodes -days 1
+        -keyout /etc/letsencrypt/live/mesh.example.net/privkey.pem
+        -out /etc/letsencrypt/live/mesh.example.net/fullchain.pem
+        -subj "/CN=prometheus-test.mesh.example.net"
+        -addext "subjectAltName=DNS:prometheus-test.mesh.example.net,IP:fd00:dead:beef::20"
+      args:
+        creates: /etc/letsencrypt/live/mesh.example.net/fullchain.pem
+
+    - name: Trust the test certificate as a CA
+      ansible.builtin.copy:
+        src: /etc/letsencrypt/live/mesh.example.net/fullchain.pem
+        dest: /usr/local/share/ca-certificates/prometheus-test.crt
+        remote_src: true
+        mode: "0644"
+
+    - name: Refresh the system CA trust store
+      ansible.builtin.command: update-ca-certificates
+      changed_when: true
+
+    - name: Map the test mesh hostname to the dummy interface address
+      ansible.builtin.shell: |
+        grep -q 'prometheus-test.mesh.example.net' /etc/hosts || \
+          echo 'fd00:dead:beef::20 prometheus-test.mesh.example.net' >> /etc/hosts
+      changed_when: false
+
+    - name: Download a stale Prometheus release to simulate a pre-existing install
+      ansible.builtin.get_url:
+        url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_stale_version }}/prometheus-{{ prometheus_stale_version }}.linux-arm64.tar.gz"
+        dest: /root/prometheus-stale.tar.gz
+        mode: "0644"
+
+    - name: Extract the stale Prometheus release
+      ansible.builtin.unarchive:
+        src: /root/prometheus-stale.tar.gz
+        dest: /root
+        remote_src: true
+
+    - name: Install the stale prometheus binary
+      ansible.builtin.copy:
+        src: "/root/prometheus-{{ prometheus_stale_version }}.linux-arm64/prometheus"
+        dest: /usr/local/bin/prometheus
+        remote_src: true
+        mode: "0755"
+
+    - name: Write a minimal scrape config so the stale binary can start
+      ansible.builtin.file:
+        path: /etc/prometheus
+        state: directory
+        mode: "0755"
+
+    - name: Write the minimal stale prometheus.yml
+      ansible.builtin.copy:
+        dest: /etc/prometheus/prometheus.yml
+        content: |
+          global:
+            scrape_interval: 60s
+        mode: "0644"
+
+    - name: Create an insecure, all-interfaces Prometheus systemd unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/prometheus.service
+        content: |
+          [Unit]
+          Description=Prometheus (insecure baseline for test)
+          After=network.target
+
+          [Service]
+          ExecStart=/usr/local/bin/prometheus --config.file=/etc/prometheus/prometheus.yml --web.listen-address=0.0.0.0:9090
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: "0644"
+
+    - name: Reload systemd and start the insecure baseline
+      ansible.builtin.systemd:
+        daemon_reload: true
+        name: prometheus
+        enabled: true
+        state: started

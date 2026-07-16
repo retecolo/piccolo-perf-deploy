@@ -1,0 +1,6 @@
+tls_server_config:
+  cert_file: {{ tls_cert_dir_prometheus }}/fullchain.pem
+  key_file: {{ tls_cert_dir_prometheus }}/privkey.pem
+
+basic_auth_users:
+  {{ prometheus_basic_auth_username }}: {{ prometheus_basic_auth_password_hash }}

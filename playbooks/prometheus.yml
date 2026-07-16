@@ -1,0 +1,6 @@
+---
+- name: Install/adopt and harden Prometheus
+  hosts: prometheus_hosts
+  become: true
+  roles:
+    - prometheus_hardened

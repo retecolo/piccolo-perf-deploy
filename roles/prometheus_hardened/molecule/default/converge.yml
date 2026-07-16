@@ -1,0 +1,40 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  pre_tasks:
+    - name: Ensure prometheus group/user exist before staging certs
+      ansible.builtin.group:
+        name: prometheus
+        system: true
+        state: present
+
+    - name: Ensure prometheus user exists
+      ansible.builtin.user:
+        name: prometheus
+        group: prometheus
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    - name: Stage the TLS directory (simulates cert-distribute.yml)
+      ansible.builtin.file:
+        path: /etc/prometheus/tls
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: "0750"
+
+    - name: Copy the test cert into place
+      ansible.builtin.copy:
+        src: "/etc/letsencrypt/live/mesh.example.net/{{ item }}"
+        dest: "/etc/prometheus/tls/{{ item }}"
+        remote_src: true
+        owner: prometheus
+        group: prometheus
+        mode: "0640"
+      loop:
+        - fullchain.pem
+        - privkey.pem
+  roles:
+    - prometheus_hardened

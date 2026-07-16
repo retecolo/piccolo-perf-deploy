@@ -1,0 +1,16 @@
+---
+prometheus_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+  armv7l: armv7
+  i386: "386"
+  ppc64le: ppc64le
+  riscv64: riscv64
+  s390x: s390x
+
+prometheus_asset_os: "{{ ansible_system | lower }}"
+prometheus_asset_arch: "{{ prometheus_arch_map[ansible_architecture] }}"
+prometheus_asset_dir_name: "prometheus-{{ prometheus_version }}.{{ prometheus_asset_os }}-{{ prometheus_asset_arch }}"
+prometheus_asset_name: "{{ prometheus_asset_dir_name }}.tar.gz"
+prometheus_release_url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/{{ prometheus_asset_name }}"
+prometheus_checksums_url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/sha256sums.txt"
