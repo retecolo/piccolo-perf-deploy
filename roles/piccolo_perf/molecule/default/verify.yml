@@ -1,0 +1,26 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Re-derive mesh_ipv6 for this verification play
+      ansible.builtin.set_fact:
+        mesh_ipv6: "{{ (ansible_facts[mesh_iface]['ipv6'] | selectattr('scope', 'ne', 'link') | first).address }}"
+
+    - name: Assert the mesh IPv6 address was resolved onto the dummy interface
+      ansible.builtin.assert:
+        that:
+          - mesh_ipv6 == "fd00:dead:beef::10"
+        fail_msg: "mesh_ipv6 fact was not resolved correctly: got '{{ mesh_ipv6 | default('undefined') }}'"
+
+    - name: Assert the stub config server fixture is reachable (test-harness sanity check)
+      ansible.builtin.uri:
+        url: "https://piccolo-perf-test.mesh.example.net:8443/piccolo-config.json"
+        status_code: 200
+        return_content: true
+      register: stub_check
+
+    - name: Assert the fixture content round-trips
+      ansible.builtin.assert:
+        that:
+          - "'piccolo-perf-test' in stub_check.content"

@@ -1,0 +1,22 @@
+---
+piccolo_perf_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+  armv7l: arm
+  i386: "386"
+  ppc64le: ppc64le
+  riscv64: riscv64
+  s390x: s390x
+
+piccolo_perf_os_map:
+  Linux: linux
+  Darwin: darwin
+  FreeBSD: freebsd
+  OpenBSD: openbsd
+  NetBSD: netbsd
+
+piccolo_perf_asset_os: "{{ piccolo_perf_os_map[ansible_system] }}"
+piccolo_perf_asset_arch: "{{ piccolo_perf_arch_map[ansible_architecture] }}"
+piccolo_perf_asset_name: "piccolo-perf_{{ piccolo_perf_version }}_{{ piccolo_perf_asset_os }}_{{ piccolo_perf_asset_arch }}.tar.gz"
+piccolo_perf_release_url: "https://github.com/{{ piccolo_perf_github_repo }}/releases/download/v{{ piccolo_perf_version }}/{{ piccolo_perf_asset_name }}"
+piccolo_perf_checksums_url: "https://github.com/{{ piccolo_perf_github_repo }}/releases/download/v{{ piccolo_perf_version }}/checksums.txt"

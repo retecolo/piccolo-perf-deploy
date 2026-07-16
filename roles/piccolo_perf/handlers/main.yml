@@ -1,0 +1,5 @@
+---
+- name: restart piccolo-perf
+  ansible.builtin.systemd:
+    name: "{{ piccolo_perf_service_name }}"
+    state: restarted

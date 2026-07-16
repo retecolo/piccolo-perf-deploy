@@ -1,0 +1,11 @@
+---
+- name: Resolve this host's mesh VPN IPv6 address
+  ansible.builtin.set_fact:
+    mesh_ipv6: "{{ (ansible_facts[mesh_iface]['ipv6'] | selectattr('scope', 'ne', 'link') | first).address }}"
+
+- name: Fail fast if no mesh IPv6 address was found
+  ansible.builtin.assert:
+    that:
+      - mesh_ipv6 is defined
+      - mesh_ipv6 | length > 0
+    fail_msg: "No non-link-local IPv6 address found on mesh interface '{{ mesh_iface }}'"

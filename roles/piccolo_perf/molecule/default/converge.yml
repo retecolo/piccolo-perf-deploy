@@ -1,0 +1,32 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  pre_tasks:
+    - name: Ensure the cert group exists (simulates group created earlier by the role)
+      ansible.builtin.group:
+        name: piccolo-perf-cert
+        system: true
+        state: present
+
+    - name: Stage the TLS directory (simulates cert-distribute.yml having already run)
+      ansible.builtin.file:
+        path: /etc/piccolo-perf/tls
+        state: directory
+        owner: root
+        group: piccolo-perf-cert
+        mode: "0750"
+
+    - name: Copy the test cert into place (simulates cert-distribute.yml)
+      ansible.builtin.copy:
+        src: "/etc/letsencrypt/live/mesh.example.net/{{ item }}"
+        dest: "/etc/piccolo-perf/tls/{{ item }}"
+        remote_src: true
+        owner: root
+        group: piccolo-perf-cert
+        mode: "0640"
+      loop:
+        - fullchain.pem
+        - privkey.pem
+  roles:
+    - piccolo_perf

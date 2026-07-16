@@ -1,0 +1,101 @@
+---
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 0
+
+    - name: Install prerequisites present in the test image
+      ansible.builtin.package:
+        name: [iproute2, openssl, curl, tar, nginx, ca-certificates]
+        state: present
+
+    - name: Create a dummy interface to simulate the mesh VPN
+      ansible.builtin.command: ip link add dummy0 type dummy
+      register: dummy_link
+      changed_when: dummy_link.rc == 0
+      failed_when: dummy_link.rc != 0 and 'File exists' not in dummy_link.stderr
+
+    - name: Bring the dummy interface up
+      ansible.builtin.command: ip link set dummy0 up
+      changed_when: false
+
+    - name: Assign a ULA IPv6 address to the dummy interface
+      ansible.builtin.command: ip -6 addr add fd00:dead:beef::10/64 dev dummy0
+      register: dummy_addr
+      changed_when: dummy_addr.rc == 0
+      failed_when: dummy_addr.rc != 0 and 'File exists' not in dummy_addr.stderr
+
+    - name: Ensure the TLS staging directory exists
+      ansible.builtin.file:
+        path: /etc/letsencrypt/live/mesh.example.net
+        state: directory
+        mode: "0755"
+
+    - name: Generate a self-signed test certificate with DNS and IP SANs
+      ansible.builtin.command: >
+        openssl req -x509 -newkey rsa:2048 -nodes -days 1
+        -keyout /etc/letsencrypt/live/mesh.example.net/privkey.pem
+        -out /etc/letsencrypt/live/mesh.example.net/fullchain.pem
+        -subj "/CN=piccolo-perf-test.mesh.example.net"
+        -addext "subjectAltName=DNS:piccolo-perf-test.mesh.example.net,IP:fd00:dead:beef::10"
+      args:
+        creates: /etc/letsencrypt/live/mesh.example.net/fullchain.pem
+
+    - name: Trust the test certificate as a CA so Go's http client accepts it
+      ansible.builtin.copy:
+        src: /etc/letsencrypt/live/mesh.example.net/fullchain.pem
+        dest: /usr/local/share/ca-certificates/piccolo-perf-test.crt
+        remote_src: true
+        mode: "0644"
+
+    - name: Refresh the system CA trust store
+      ansible.builtin.command: update-ca-certificates
+      changed_when: true
+
+    - name: Map the test mesh hostname to the dummy interface address
+      ansible.builtin.shell: |
+        grep -q 'piccolo-perf-test.mesh.example.net' /etc/hosts || \
+          echo 'fd00:dead:beef::10 piccolo-perf-test.mesh.example.net' >> /etc/hosts
+      changed_when: false
+
+    - name: Write a fixture topology config for the stub config server
+      ansible.builtin.copy:
+        dest: /var/www/html/piccolo-config.json
+        content: |
+          {
+            "topology": "mesh",
+            "config_refresh": "5m",
+            "hide_skipped": false,
+            "hosts": [
+              { "name": "piccolo-perf-test", "address": "fd00:dead:beef::10", "site": "test" }
+            ],
+            "hub_spoke": { "enabled": false, "hub": "" },
+            "measurements": [
+              { "type": "dns", "interval": "120s", "resolvers": ["2620:fe::fe"], "names": ["example.com"] }
+            ],
+            "influxdb": { "url": "", "token": "", "org": "", "bucket": "" },
+            "local_store": { "enabled": false, "path": "/var/lib/piccolo-perf/results.jsonl", "max_lines": 10000 }
+          }
+        mode: "0644"
+
+    - name: Configure nginx as a stub HTTPS config server for this test only
+      ansible.builtin.copy:
+        dest: /etc/nginx/conf.d/config-stub.conf
+        content: |
+          server {
+            listen [fd00:dead:beef::10]:8443 ssl;
+            ssl_certificate /etc/letsencrypt/live/mesh.example.net/fullchain.pem;
+            ssl_certificate_key /etc/letsencrypt/live/mesh.example.net/privkey.pem;
+            root /var/www/html;
+          }
+        mode: "0644"
+
+    - name: Start the stub config server
+      ansible.builtin.systemd:
+        name: nginx
+        state: restarted
+        enabled: true

@@ -1,0 +1,11 @@
+---
+piccolo_perf_version: "1.2.0"
+piccolo_perf_github_repo: retecolo/piccolo-perf
+piccolo_perf_binary_path: /usr/local/bin/piccolo-perf
+piccolo_perf_metrics_port: 9862
+piccolo_perf_twamp_port: 862
+piccolo_perf_probe_mode: background
+piccolo_perf_tls_dir: /etc/piccolo-perf/tls
+piccolo_perf_cert_group: piccolo-perf-cert
+piccolo_perf_service_name: piccolo-perf-exporter
+piccolo_perf_config_url: "https://config.{{ mesh_domain }}:{{ config_server_port | default(8443) }}/piccolo-config.json"
