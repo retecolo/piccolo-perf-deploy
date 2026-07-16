@@ -6,6 +6,7 @@
     - name: Re-derive mesh_ipv6 for this verification play
       ansible.builtin.set_fact:
         mesh_ipv6: "{{ (ansible_facts[mesh_iface]['ipv6'] | selectattr('scope', 'ne', 'link') | first).address }}"
+        piccolo_perf_metrics_port: "{{ piccolo_perf_metrics_port | default(9862) }}"
 
     - name: Assert the mesh IPv6 address was resolved onto the dummy interface
       ansible.builtin.assert:
@@ -34,3 +35,33 @@
       ansible.builtin.assert:
         that:
           - "'1.0.7' in piccolo_perf_version_check.stdout"
+
+    - name: Assert the piccolo-perf-exporter service is active
+      ansible.builtin.command: systemctl is-active piccolo-perf-exporter
+      register: piccolo_perf_active
+      changed_when: false
+      failed_when: piccolo_perf_active.stdout != "active"
+
+    - name: Assert the exporter is listening only on the mesh IPv6 address
+      ansible.builtin.command: ss -H -6 -l -n -p sport = :{{ piccolo_perf_metrics_port }}
+      register: piccolo_perf_listeners
+      changed_when: false
+
+    - name: Assert listener output matches the mesh address, not a wildcard
+      ansible.builtin.assert:
+        that:
+          - mesh_ipv6 in piccolo_perf_listeners.stdout
+          - "'*:' + (piccolo_perf_metrics_port | string) not in piccolo_perf_listeners.stdout"
+          - "'[::]:' + (piccolo_perf_metrics_port | string) not in piccolo_perf_listeners.stdout"
+
+    - name: Assert /metrics is reachable over HTTPS via the mesh interface
+      ansible.builtin.uri:
+        url: "https://piccolo-perf-test.mesh.example.net:{{ piccolo_perf_metrics_port }}/metrics"
+        status_code: 200
+        return_content: true
+      register: metrics_check
+
+    - name: Assert the fetched config is reflected in exported metrics
+      ansible.builtin.assert:
+        that:
+          - "'piccolo-perf-test' in metrics_check.content"

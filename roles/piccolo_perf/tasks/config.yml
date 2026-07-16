@@ -1,0 +1,22 @@
+---
+- name: Ensure /etc/piccolo-perf exists
+  ansible.builtin.file:
+    path: /etc/piccolo-perf
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure the TLS certificate group exists
+  ansible.builtin.group:
+    name: "{{ piccolo_perf_cert_group }}"
+    system: true
+    state: present
+
+- name: Ensure the TLS directory exists
+  ansible.builtin.file:
+    path: "{{ piccolo_perf_tls_dir }}"
+    state: directory
+    owner: root
+    group: "{{ piccolo_perf_cert_group }}"
+    mode: "0750"

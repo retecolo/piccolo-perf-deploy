@@ -12,3 +12,9 @@
 
 - name: Install piccolo-perf
   ansible.builtin.import_tasks: install.yml
+
+- name: Configure piccolo-perf
+  ansible.builtin.import_tasks: config.yml
+
+- name: Deploy piccolo-perf systemd unit
+  ansible.builtin.import_tasks: service.yml

@@ -1,0 +1,19 @@
+---
+- name: Deploy the piccolo-perf-exporter systemd unit
+  ansible.builtin.template:
+    src: piccolo-perf-exporter.service.j2
+    dest: "/etc/systemd/system/{{ piccolo_perf_service_name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart piccolo-perf
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable and start piccolo-perf-exporter
+  ansible.builtin.systemd:
+    name: "{{ piccolo_perf_service_name }}"
+    enabled: true
+    state: started
