@@ -1,0 +1,47 @@
+---
+- name: Check installed piccolo-perf version
+  ansible.builtin.command: "{{ piccolo_perf_binary_path }} -version"
+  register: piccolo_perf_installed_version
+  changed_when: false
+  failed_when: false
+
+- name: Download and install piccolo-perf {{ piccolo_perf_version }}
+  when: piccolo_perf_version not in (piccolo_perf_installed_version.stdout | default(''))
+  block:
+    - name: Download checksums.txt
+      ansible.builtin.get_url:
+        url: "{{ piccolo_perf_checksums_url }}"
+        dest: "/tmp/piccolo-perf-checksums-{{ piccolo_perf_version }}.txt"
+        mode: "0644"
+
+    - name: Extract expected checksum for this platform's asset
+      ansible.builtin.shell: |
+        set -o pipefail
+        grep '{{ piccolo_perf_asset_name }}' /tmp/piccolo-perf-checksums-{{ piccolo_perf_version }}.txt | awk '{print $1}'
+      args:
+        executable: /bin/bash
+      register: piccolo_perf_expected_checksum
+      changed_when: false
+
+    - name: Download and verify the piccolo-perf release archive
+      ansible.builtin.get_url:
+        url: "{{ piccolo_perf_release_url }}"
+        dest: "/tmp/{{ piccolo_perf_asset_name }}"
+        checksum: "sha256:{{ piccolo_perf_expected_checksum.stdout }}"
+        mode: "0644"
+
+    - name: Extract the piccolo-perf binary
+      ansible.builtin.unarchive:
+        src: "/tmp/{{ piccolo_perf_asset_name }}"
+        dest: /tmp
+        remote_src: true
+
+    - name: Install the piccolo-perf binary
+      ansible.builtin.copy:
+        src: /tmp/piccolo-perf
+        dest: "{{ piccolo_perf_binary_path }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+      notify: restart piccolo-perf

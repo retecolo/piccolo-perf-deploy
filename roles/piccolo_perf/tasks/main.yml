@@ -9,3 +9,6 @@
       - mesh_ipv6 is defined
       - mesh_ipv6 | length > 0
     fail_msg: "No non-link-local IPv6 address found on mesh interface '{{ mesh_iface }}'"
+
+- name: Install piccolo-perf
+  ansible.builtin.import_tasks: install.yml

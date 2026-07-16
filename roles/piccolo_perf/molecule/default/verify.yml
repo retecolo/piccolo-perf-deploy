@@ -24,3 +24,13 @@
       ansible.builtin.assert:
         that:
           - "'piccolo-perf-test' in stub_check.content"
+
+    - name: Check the installed piccolo-perf version
+      ansible.builtin.command: /usr/local/bin/piccolo-perf -version
+      register: piccolo_perf_version_check
+      changed_when: false
+
+    - name: Assert the pinned version was installed
+      ansible.builtin.assert:
+        that:
+          - "'1.0.7' in piccolo_perf_version_check.stdout"

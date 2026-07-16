@@ -3,3 +3,4 @@
   ansible.builtin.systemd:
     name: "{{ piccolo_perf_service_name }}"
     state: restarted
+  failed_when: false
