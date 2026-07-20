@@ -1,3 +1,3 @@
 [Unit]
-After=network-online.target {{ mesh_vpn_service }}
-Wants=network-online.target {{ mesh_vpn_service }}
+After=network-online.target {{ mesh_vpn_services | join(' ') }}
+Wants=network-online.target {{ mesh_vpn_services | join(' ') }}

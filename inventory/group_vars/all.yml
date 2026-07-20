@@ -1,10 +1,22 @@
 ---
-# Interface name is assumed consistent across the whole fleet (per mesh VPN setup).
-mesh_iface: wg0
+# Primary mesh interface — used to resolve this host's mesh IPv6 address.
+# Must be a single interface that carries the ULA/mesh IPv6 address.
+mesh_iface: wt0
 mesh_domain: mesh.example.net
-# systemd unit name for the mesh VPN, used for After=/BindsTo= ordering so
-# services rebind correctly if the tunnel restarts or comes up late at boot.
-mesh_vpn_service: "wg-quick@wg0.service"
+
+# All mesh/trusted interfaces whose traffic should be permitted to reach fleet
+# services. Accepts any interface type: wt0, tailscale0, eth0, zt0, wg0, etc.
+# nftables rules allow inbound traffic from any interface in this list and drop
+# all other inbound traffic on the relevant ports.
+allowed_mesh_ifaces:
+  - wt0
+  - tailscale0
+
+# systemd units to wait for before starting fleet services.
+# Listed in After=/Wants= (not BindsTo=) so services survive a VPN restart.
+mesh_vpn_services:
+  - tailscaled.service
+  - netbird.service
 
 # Fleet topology, shared by the config_server role (serves it as JSON) and
 # used by prometheus_hardened's scrape config. Edit to match your fleet.

@@ -1,5 +1,6 @@
 server {
-  listen [{{ mesh_ipv6 }}]:{{ config_server_port }} ssl;
+  listen {{ config_server_port }} ssl;
+  listen [::]:{{ config_server_port }} ssl;
   ssl_certificate {{ config_server_tls_dir }}/fullchain.pem;
   ssl_certificate_key {{ config_server_tls_dir }}/privkey.pem;
 

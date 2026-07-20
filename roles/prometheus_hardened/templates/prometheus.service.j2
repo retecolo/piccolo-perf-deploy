@@ -1,8 +1,7 @@
 [Unit]
 Description=Prometheus
-After=network-online.target {{ mesh_vpn_service }}
-Wants=network-online.target
-BindsTo={{ mesh_vpn_service }}
+After=network-online.target {{ mesh_vpn_services | join(' ') }}
+Wants=network-online.target {{ mesh_vpn_services | join(' ') }}
 
 [Service]
 User=prometheus
@@ -10,7 +9,7 @@ Group=prometheus
 ExecStart={{ prometheus_binary_path }} \
   --config.file={{ prometheus_config_dir }}/prometheus.yml \
   --storage.tsdb.path={{ prometheus_data_dir }} \
-  --web.listen-address=[{{ mesh_ipv6 }}]:{{ prometheus_web_port }} \
+  --web.listen-address=[::]:{{ prometheus_web_port }} \
   --web.config.file={{ prometheus_config_dir }}/web.config.yml
 Restart=on-failure
 RestartSec=10s

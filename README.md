@@ -308,9 +308,10 @@ and replace the binary if the version doesn't match.
 
 | Variable | Default | Description |
 |---|---|---|
-| `mesh_iface` | `wg0` | Mesh VPN interface name (must be consistent across fleet) |
+| `mesh_iface` | `wt0` | Primary mesh interface used to resolve this host's mesh IPv6 address |
 | `mesh_domain` | `mesh.example.net` | Internal DNS domain |
-| `mesh_vpn_service` | `wg-quick@wg0.service` | systemd unit for the mesh VPN |
+| `allowed_mesh_ifaces` | `[wt0, tailscale0]` | All interfaces whose inbound traffic should reach fleet services. Accepts any interface type: `wt0`, `tailscale0`, `eth0`, `zt0`, `wg0`, etc. nftables allows traffic from any listed interface and drops all others on fleet ports. |
+| `mesh_vpn_services` | `[tailscaled.service, netbird.service]` | systemd units listed in `After=`/`Wants=` for fleet services. Use `Wants=` (not `BindsTo=`) so services survive a VPN restart. |
 | `piccolo_perf_hosts` | see file | List of `{name, address, site}` dicts describing the fleet |
 | `piccolo_perf_measurements` | see file | List of measurement configs served to piccolo-perf |
 

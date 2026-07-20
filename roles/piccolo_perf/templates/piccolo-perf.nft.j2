@@ -1,8 +1,13 @@
 table inet piccolo_fleet_perf {
+  set allowed_ifaces {
+    type ifname
+    elements = { lo, {{ allowed_mesh_ifaces | join(', ') }} }
+  }
+
   chain input {
     type filter hook input priority filter; policy accept;
-    iifname "lo" accept
-    iifname != "{{ mesh_iface }}" tcp dport {{ piccolo_perf_metrics_port }} drop
-    iifname != "{{ mesh_iface }}" udp dport {{ piccolo_perf_twamp_port }} drop
+    iifname @allowed_ifaces accept
+    tcp dport {{ piccolo_perf_metrics_port }} drop
+    udp dport {{ piccolo_perf_twamp_port }} drop
   }
 }
