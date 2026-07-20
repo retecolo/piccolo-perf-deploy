@@ -353,6 +353,11 @@ Set in `inventory/group_vars/prometheus_hosts.yml`:
 | `config_server_port` | `8443` | HTTPS port nginx listens on |
 | `config_server_www_dir` | `/etc/piccolo-fleet/www` | Document root |
 | `config_server_tls_dir` | `/etc/piccolo-fleet/tls` | TLS cert location |
+| `config_server_remove_default_site` | `false` | Remove `/etc/nginx/sites-enabled/default`; set `true` only on hosts where no other service (e.g. Grafana) uses that vhost |
+
+**Co-locating with Grafana or other nginx vhosts:** the role deploys a single named vhost (`piccolo-fleet-config-server.conf`) on port 8443 bound exclusively to the mesh IPv6 address. It does not touch other vhosts. Set `config_server_remove_default_site: false` (the default) to leave any existing Grafana or default vhost in place. The systemd drop-in uses `Wants=` rather than `BindsTo=` for the mesh VPN service so that nginx stays up (and Grafana keeps serving) even if the mesh interface goes down.
+
+**First-run ordering:** nginx is only started by the role when the TLS cert is already present at `config_server_tls_dir`. On a fresh host, run `cert-issue.yml` first; the deploy hook calls `cert-distribute.yml`, which copies the cert and reloads nginx automatically. If you run `site.yml` before issuing a cert, the role enables nginx but does not start it — re-run after cert distribution to bring it up.
 
 ### `roles/cert_issuer/defaults/main.yml`
 

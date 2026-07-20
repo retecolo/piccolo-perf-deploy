@@ -15,7 +15,7 @@
     name: nginx
     state: present
 
-- name: Ensure the config server parent and www directories exist
+- name: Ensure the config server directories exist
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: directory
@@ -25,6 +25,7 @@
   loop:
     - { path: "{{ config_server_www_dir | dirname }}", mode: "0755" }
     - { path: "{{ config_server_www_dir }}", mode: "0755" }
+    - { path: "{{ config_server_tls_dir }}", mode: "0750" }
 
 - name: Deploy the fleet topology config
   ansible.builtin.template:
@@ -70,12 +71,25 @@
     path: /etc/nginx/sites-enabled/default
     state: absent
   notify: reload nginx
+  when: config_server_remove_default_site | bool
 
-- name: Enable and start nginx
+- name: Check whether the TLS cert is present
+  ansible.builtin.stat:
+    path: "{{ config_server_tls_dir }}/fullchain.pem"
+  register: config_server_cert_stat
+
+- name: Enable and start nginx (only when cert is present)
   ansible.builtin.systemd:
     name: nginx
     enabled: true
     state: started
+  when: config_server_cert_stat.stat.exists
+
+- name: Enable nginx without starting (cert not yet distributed)
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+  when: not config_server_cert_stat.stat.exists
 
 - name: Restrict the config server port to the mesh interface
   ansible.builtin.import_tasks: firewall.yml
