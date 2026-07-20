@@ -3,3 +3,4 @@
 set -e
 cd {{ cert_issuer_playbook_dir }}
 ansible-playbook -i {{ cert_issuer_inventory_path }} playbooks/cert-distribute.yml
+ansible-playbook -i {{ cert_issuer_inventory_path }} playbooks/config-server.yml

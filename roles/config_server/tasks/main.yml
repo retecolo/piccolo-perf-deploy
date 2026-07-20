@@ -57,6 +57,11 @@
     daemon_reload: true
   when: config_server_dropin.changed
 
+- name: Check whether the TLS cert is present
+  ansible.builtin.stat:
+    path: "{{ config_server_tls_dir }}/fullchain.pem"
+  register: config_server_cert_stat
+
 - name: Deploy the config-server HTTPS vhost
   ansible.builtin.template:
     src: config-server.conf.j2
@@ -65,20 +70,16 @@
     group: root
     mode: "0644"
   notify: reload nginx
+  when: config_server_cert_stat.stat.exists
 
 - name: Remove the nginx default site to avoid vhost conflicts
   ansible.builtin.file:
     path: /etc/nginx/sites-enabled/default
     state: absent
   notify: reload nginx
-  when: config_server_remove_default_site | bool
+  when: config_server_remove_default_site | bool and config_server_cert_stat.stat.exists
 
-- name: Check whether the TLS cert is present
-  ansible.builtin.stat:
-    path: "{{ config_server_tls_dir }}/fullchain.pem"
-  register: config_server_cert_stat
-
-- name: Enable and start nginx (only when cert is present)
+- name: Enable and start nginx (cert present)
   ansible.builtin.systemd:
     name: nginx
     enabled: true
