@@ -138,42 +138,61 @@ The `piccolo_perf_hosts` list is the single source of truth for fleet topology. 
 to build the Prometheus scrape config. Add or remove hosts here and re-run `site.yml`
 to propagate changes everywhere.
 
-### 3. Create Ansible Vault secrets
+### 3. Configure secrets with Ansible Vault
 
-Three secrets must be set before the first run. Create a vault file:
+Two group_vars files hold secrets that must be vault-encrypted before committing.
+
+#### Cert issuer credentials
+
+`inventory/group_vars/cert_issuer_hosts.yml` is created for you with a placeholder.
+Edit it to add your real DNS API token, then encrypt:
 
 ```bash
-ansible-vault create inventory/group_vars/vault.yml
+$EDITOR inventory/group_vars/cert_issuer_hosts.yml
+ansible-vault encrypt inventory/group_vars/cert_issuer_hosts.yml
 ```
 
-Add these keys:
+The file should contain:
 
 ```yaml
-# DNS provider API credentials — exact format depends on the certbot plugin.
+cert_issuer_acme_email: "admin@mesh.example.net"
+
 # For Cloudflare (python3-certbot-dns-cloudflare):
 cert_issuer_dns_credentials_content: |
   dns_cloudflare_api_token = <your-token-here>
-
-# bcrypt hash of the Prometheus basic-auth password.
-# Generate with: htpasswd -nbBC 10 admin '<password>'
-prometheus_basic_auth_password_hash: "$2y$10$..."
-
-# Plaintext password — used by verify-fleet.yml to make authenticated requests.
-# Keep it consistent with the hash above.
-prometheus_basic_auth_password: "<your-password-here>"
 ```
 
-Reference the vault file in your inventory or pass `--ask-vault-pass` /
-`--vault-password-file` on every `ansible-playbook` invocation.
+The Cloudflare token needs **Zone:Zone:Read** and **Zone:DNS:Edit** permissions
+for the zone that contains your `mesh_domain`.
 
 > **DNS plugin selection:** The default plugin is `cloudflare`. To use a different
-> provider, override in `inventory/group_vars/vault.yml` or any group_vars file:
+> provider, override `cert_issuer_dns_plugin_name` in `cert_issuer_hosts.yml`:
 >
 > ```yaml
 > cert_issuer_dns_plugin_name: route53
 > # cert_issuer_certbot_dns_package and cert_issuer_certbot_authenticator
 > # are derived automatically from cert_issuer_dns_plugin_name.
 > ```
+
+#### Prometheus credentials
+
+Edit `inventory/group_vars/prometheus_hosts.yml` to add the password variables,
+then encrypt:
+
+```bash
+# Generate a bcrypt hash
+htpasswd -nbBC 10 admin '<password>'
+
+$EDITOR inventory/group_vars/prometheus_hosts.yml
+# Add:
+#   prometheus_basic_auth_password_hash: "$2y$10$..."
+#   prometheus_basic_auth_password: "<your-password-here>"
+
+ansible-vault encrypt inventory/group_vars/prometheus_hosts.yml
+```
+
+Pass `--ask-vault-pass` or `--vault-password-file ~/.vault_pass` on every
+`ansible-playbook` invocation that touches encrypted files.
 
 ---
 
@@ -343,6 +362,7 @@ Set in `inventory/group_vars/prometheus_hosts.yml`:
 | `cert_issuer_dns_plugin_name` | `cloudflare` | certbot DNS plugin name |
 | `cert_issuer_dns_credentials_path` | `/etc/letsencrypt/dns-credentials.ini` | Where credentials file is written |
 | `cert_issuer_dns_credentials_content` | `""` | **Must be in Vault** — credentials file contents |
+| `cert_issuer_dns_propagation_seconds` | `60` | Seconds to wait for DNS TXT record propagation before ACME validation |
 | `cert_issuer_deploy_hook_path` | `/usr/local/sbin/piccolo-cert-deploy-hook.sh` | Script certbot calls on renewal |
 | `cert_issuer_playbook_dir` | `/opt/piccolo-fleet` | Project root on the control node |
 | `cert_issuer_inventory_path` | `inventory/hosts.ini` | Inventory path used by the deploy hook |

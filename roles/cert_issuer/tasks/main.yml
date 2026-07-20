@@ -36,7 +36,8 @@
     --preferred-challenges dns
     --authenticator {{ cert_issuer_certbot_authenticator }}
     --{{ cert_issuer_certbot_authenticator }}-credentials {{ cert_issuer_dns_credentials_path }}
-    -d "*.{{ mesh_domain }}"
+    --{{ cert_issuer_certbot_authenticator }}-propagation-seconds {{ cert_issuer_dns_propagation_seconds }}
+    -d *.{{ mesh_domain }}
     --cert-name {{ mesh_domain }}
     --deploy-hook {{ cert_issuer_deploy_hook_path }}
   register: cert_issuer_result

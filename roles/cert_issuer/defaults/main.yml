@@ -7,6 +7,7 @@ cert_issuer_dns_credentials_path: /etc/letsencrypt/dns-credentials.ini
 # Set via Ansible Vault — contents of the certbot DNS plugin's credentials file,
 # e.g. "dns_cloudflare_api_token = <token>" for the Cloudflare plugin.
 cert_issuer_dns_credentials_content: ""
+cert_issuer_dns_propagation_seconds: 60
 cert_issuer_deploy_hook_path: /usr/local/sbin/piccolo-cert-deploy-hook.sh
 cert_issuer_playbook_dir: /opt/piccolo-fleet
 cert_issuer_inventory_path: inventory/hosts.ini

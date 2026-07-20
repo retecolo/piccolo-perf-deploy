@@ -1,0 +1,14 @@
+---
+# Encrypt this file with Ansible Vault before committing:
+#   ansible-vault encrypt inventory/group_vars/cert_issuer_hosts.yml
+#
+# To edit after encrypting:
+#   ansible-vault edit inventory/group_vars/cert_issuer_hosts.yml
+
+cert_issuer_acme_email: "admin@{{ mesh_domain }}"
+
+# Contents written verbatim to /etc/letsencrypt/dns-credentials.ini on the
+# cert issuer host.  For the Cloudflare plugin the format is:
+#   dns_cloudflare_api_token = <token>
+cert_issuer_dns_credentials_content: |
+  dns_cloudflare_api_token = REPLACE_ME
