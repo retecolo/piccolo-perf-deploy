@@ -4,8 +4,7 @@ After=network-online.target {{ mesh_vpn_services | join(' ') }}
 Wants=network-online.target {{ mesh_vpn_services | join(' ') }}
 
 [Service]
-ExecStart={{ piccolo_perf_binary_path }} twamp \
-  -mode exporter \
+ExecStart={{ piccolo_perf_binary_path }} exporter \
   -config-url {{ piccolo_perf_config_url }} \
   -probe-mode {{ piccolo_perf_probe_mode }} \
   -metrics-addr [::]:{{ piccolo_perf_metrics_port }} \
