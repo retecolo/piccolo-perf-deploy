@@ -29,6 +29,33 @@
     tls_cert_dir_prometheus: /etc/prometheus/tls
     config_server_tls_dir: /etc/piccolo-fleet/tls
   tasks:
+    - name: Ensure piccolo-perf TLS directory exists
+      ansible.builtin.file:
+        path: "{{ piccolo_perf_tls_dir }}"
+        state: directory
+        owner: root
+        group: "{{ piccolo_perf_cert_group }}"
+        mode: "0750"
+      when: "'piccolo_perf' in group_names"
+
+    - name: Ensure prometheus TLS directory exists
+      ansible.builtin.file:
+        path: "{{ tls_cert_dir_prometheus }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+      when: "'prometheus_hosts' in group_names"
+
+    - name: Ensure config server TLS directory exists
+      ansible.builtin.file:
+        path: "{{ config_server_tls_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+      when: "'config_server_hosts' in group_names"
+
     - name: Copy fullchain to piccolo-perf hosts
       ansible.builtin.copy:
         src: "{{ cert_src_dir }}/fullchain.pem"
