@@ -1,9 +1,28 @@
 ---
-- name: Distribute the renewed wildcard certificate to the fleet
-  hosts: piccolo_perf:prometheus_hosts:config_server_hosts
+- name: Fetch the wildcard certificate from the cert issuer to the controller
+  hosts: cert_issuer_hosts
   become: true
   vars:
     live_dir: "/etc/letsencrypt/live/{{ mesh_domain }}"
+  tasks:
+    - name: Fetch fullchain from cert issuer
+      ansible.builtin.fetch:
+        src: "{{ live_dir }}/fullchain.pem"
+        dest: "/tmp/piccolo-fleet-cert/fullchain.pem"
+        flat: true
+
+    - name: Fetch privkey from cert issuer
+      ansible.builtin.fetch:
+        src: "{{ live_dir }}/privkey.pem"
+        dest: "/tmp/piccolo-fleet-cert/privkey.pem"
+        flat: true
+      no_log: true
+
+- name: Distribute the wildcard certificate to the fleet
+  hosts: piccolo_perf:prometheus_hosts:config_server_hosts
+  become: true
+  vars:
+    cert_src_dir: "/tmp/piccolo-fleet-cert"
     piccolo_perf_tls_dir: /etc/piccolo-perf/tls
     piccolo_perf_cert_group: piccolo-perf-cert
     piccolo_perf_service_name: piccolo-perf-exporter
@@ -12,7 +31,7 @@
   tasks:
     - name: Copy fullchain to piccolo-perf hosts
       ansible.builtin.copy:
-        src: "{{ live_dir }}/fullchain.pem"
+        src: "{{ cert_src_dir }}/fullchain.pem"
         dest: "{{ piccolo_perf_tls_dir }}/fullchain.pem"
         owner: root
         group: "{{ piccolo_perf_cert_group }}"
@@ -22,17 +41,18 @@
 
     - name: Copy privkey to piccolo-perf hosts
       ansible.builtin.copy:
-        src: "{{ live_dir }}/privkey.pem"
+        src: "{{ cert_src_dir }}/privkey.pem"
         dest: "{{ piccolo_perf_tls_dir }}/privkey.pem"
         owner: root
         group: "{{ piccolo_perf_cert_group }}"
         mode: "0640"
       when: "'piccolo_perf' in group_names"
       notify: restart piccolo-perf
+      no_log: true
 
     - name: Copy fullchain to prometheus hosts
       ansible.builtin.copy:
-        src: "{{ live_dir }}/fullchain.pem"
+        src: "{{ cert_src_dir }}/fullchain.pem"
         dest: "{{ tls_cert_dir_prometheus }}/fullchain.pem"
         owner: prometheus
         group: prometheus
@@ -42,17 +62,18 @@
 
     - name: Copy privkey to prometheus hosts
       ansible.builtin.copy:
-        src: "{{ live_dir }}/privkey.pem"
+        src: "{{ cert_src_dir }}/privkey.pem"
         dest: "{{ tls_cert_dir_prometheus }}/privkey.pem"
         owner: prometheus
         group: prometheus
         mode: "0640"
       when: "'prometheus_hosts' in group_names"
       notify: restart prometheus
+      no_log: true
 
     - name: Copy fullchain to the config server host
       ansible.builtin.copy:
-        src: "{{ live_dir }}/fullchain.pem"
+        src: "{{ cert_src_dir }}/fullchain.pem"
         dest: "{{ config_server_tls_dir }}/fullchain.pem"
         owner: root
         group: root
@@ -62,13 +83,14 @@
 
     - name: Copy privkey to the config server host
       ansible.builtin.copy:
-        src: "{{ live_dir }}/privkey.pem"
+        src: "{{ cert_src_dir }}/privkey.pem"
         dest: "{{ config_server_tls_dir }}/privkey.pem"
         owner: root
         group: root
         mode: "0640"
       when: "'config_server_hosts' in group_names"
       notify: reload nginx on config server
+      no_log: true
 
   handlers:
     - name: restart piccolo-perf
