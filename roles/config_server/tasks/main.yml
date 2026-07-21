@@ -30,7 +30,7 @@
 - name: Deploy the fleet topology config
   ansible.builtin.template:
     src: piccolo-config.json.j2
-    dest: "{{ config_server_www_dir }}/piccolo-config.json"
+    dest: "{{ config_server_www_dir }}/piccolo-perf-config.json"
     owner: root
     group: root
     mode: "0644"
