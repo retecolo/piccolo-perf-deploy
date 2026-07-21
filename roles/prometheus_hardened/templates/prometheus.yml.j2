@@ -9,6 +9,6 @@ scrape_configs:
       insecure_skip_verify: true
     static_configs:
       - targets:
-{% for host in piccolo_perf_hosts %}
-          - "[{{ host.address }}]:{{ piccolo_perf_metrics_port | default(9862) }}"
+{% for host in groups['piccolo_perf'] %}
+          - "[{{ hostvars[host]['mesh_ipv6'] }}]:{{ hostvars[host]['piccolo_perf_metrics_port'] | default(9862) }}"
 {% endfor %}
