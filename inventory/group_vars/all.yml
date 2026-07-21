@@ -2,7 +2,10 @@
 # Primary mesh interface — used to resolve this host's mesh IPv6 address.
 # Must be a single interface that carries the ULA/mesh IPv6 address.
 mesh_iface: wt0
-mesh_domain: mesh.example.net
+# URL piccolo-perf fetches its config from. Must resolve from all fleet hosts.
+# Defaults to https://config.<mesh_domain>:8443 which requires a DNS record.
+# Override here if using an existing hostname instead.
+piccolo_perf_config_url: "https://controlserver:8443/piccolo-perf-config.json"
 
 # All mesh/trusted interfaces whose traffic should be permitted to reach fleet
 # services. Accepts any interface type: wt0, tailscale0, eth0, zt0, wg0, etc.
