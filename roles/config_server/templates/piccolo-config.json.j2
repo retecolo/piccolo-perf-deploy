@@ -2,7 +2,11 @@
   "topology": "mesh",
   "config_refresh": "5m",
   "hide_skipped": false,
-  "hosts": {{ piccolo_perf_hosts | to_nice_json(indent=2) | indent(2) }},
+  "hosts": [
+{% for host in piccolo_perf_hosts %}
+    { "name": {{ host.name | to_json }}, "address": {{ host.address | to_json }}, "site": {{ host.site | string | to_json }} }{{ "" if loop.last else "," }}
+{% endfor %}
+  ],
   "hub_spoke": { "enabled": false, "hub": "" },
   "measurements": {{ piccolo_perf_measurements | to_nice_json(indent=2) | indent(2) }},
   "influxdb": { "url": "", "token": "", "org": "", "bucket": "" },
