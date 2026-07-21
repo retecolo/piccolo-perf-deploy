@@ -1,0 +1,38 @@
+---
+# Add one or more hosts to the piccolo-perf fleet.
+#
+# Prerequisites:
+#   - Host line added to [piccolo_perf] in inventory/hosts.ini with mesh_ipv6= and site=
+#   - SSH access from the control node to the new host
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.ini playbooks/add-host.yml \
+#     --limit <hostname> --ask-vault-pass
+#
+# What this does:
+#   1. Distributes the existing wildcard cert to the new host
+#   2. Installs and configures piccolo-perf on the new host
+#   3. Regenerates the fleet config JSON (now includes the new host)
+#   4. Regenerates Prometheus scrape configs on all prometheus_hosts
+#   5. Restarts affected services
+
+- name: Distribute the wildcard cert to the new host
+  ansible.builtin.import_playbook: cert-distribute.yml
+
+- name: Install piccolo-perf on the new host
+  hosts: "{{ ansible_limit | default('piccolo_perf') }}"
+  become: true
+  roles:
+    - piccolo_perf
+
+- name: Regenerate fleet config JSON to include the new host
+  hosts: config_server_hosts
+  become: true
+  roles:
+    - config_server
+
+- name: Regenerate Prometheus scrape config to include the new host
+  hosts: prometheus_hosts
+  become: true
+  roles:
+    - prometheus_hardened

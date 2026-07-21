@@ -10,5 +10,7 @@ scrape_configs:
     static_configs:
       - targets:
 {% for host in groups['piccolo_perf'] %}
-          - "[{{ hostvars[host]['mesh_ipv6'] }}]:{{ hostvars[host]['piccolo_perf_metrics_port'] | default(9862) }}"
+{% if hostvars[host]['mesh_ipv6'] is defined %}
+          - "[{{ hostvars[host]['mesh_ipv6'] }}]:{{ piccolo_perf_metrics_port | default(9862) }}"
+{% endif %}
 {% endfor %}

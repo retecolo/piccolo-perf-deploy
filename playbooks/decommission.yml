@@ -1,0 +1,73 @@
+---
+# Decommission one or more hosts from the piccolo-perf fleet.
+#
+# Run this BEFORE removing the host from inventory/hosts.ini.
+# After this playbook completes, delete the host line from hosts.ini
+# and re-run site.yml to propagate the removal to surviving fleet hosts.
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.ini playbooks/decommission.yml \
+#     --limit <hostname> --ask-vault-pass
+#
+# What this does:
+#   1. Stops and disables piccolo-perf-exporter on the target host
+#   2. Removes the nftables piccolo-perf firewall table
+#   3. Removes the piccolo-perf systemd unit
+#   4. Removes TLS certs and config from the host
+#
+# After running this playbook:
+#   1. Delete the host line from inventory/hosts.ini
+#   2. Run: ansible-playbook -i inventory/hosts.ini playbooks/site.yml --ask-vault-pass
+#      (regenerates fleet config JSON and Prometheus scrape config without the removed host)
+
+- name: Decommission piccolo-perf from target hosts
+  hosts: "{{ ansible_limit | default('') }}"
+  become: true
+  tasks:
+    - name: Fail if no --limit specified
+      ansible.builtin.fail:
+        msg: "Run with --limit <hostname> to avoid accidentally decommissioning the entire fleet."
+      when: ansible_limit is not defined
+
+    - name: Stop and disable piccolo-perf-exporter
+      ansible.builtin.systemd:
+        name: piccolo-perf-exporter
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: Remove the piccolo-perf systemd unit
+      ansible.builtin.file:
+        path: /etc/systemd/system/piccolo-perf-exporter.service
+        state: absent
+      notify: reload systemd
+
+    - name: Remove the piccolo-perf nftables table
+      ansible.builtin.command: nft delete table inet piccolo_fleet_perf
+      ignore_errors: true
+      changed_when: true
+
+    - name: Remove the piccolo-perf nftables rules file
+      ansible.builtin.file:
+        path: /etc/nftables.d/piccolo-perf.nft
+        state: absent
+
+    - name: Remove the piccolo-perf TLS directory
+      ansible.builtin.file:
+        path: /etc/piccolo-perf/tls
+        state: absent
+
+    - name: Remove the piccolo-perf config directory
+      ansible.builtin.file:
+        path: /etc/piccolo-perf
+        state: absent
+
+    - name: Remove the piccolo-perf binary
+      ansible.builtin.file:
+        path: /usr/local/bin/piccolo-perf
+        state: absent
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

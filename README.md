@@ -250,19 +250,80 @@ This hits every deployed service over HTTPS through the mesh interface:
 
 ---
 
+## Host management
+
+`inventory/hosts.ini` is the single source of truth for fleet membership. Every host
+in `[piccolo_perf]` requires two inline variables:
+
+```ini
+[piccolo_perf]
+probe-a  ansible_host=probe-a.mesh.example.net  mesh_ipv6=fd00:dead:beef::1  site="site-a"
+probe-b  ansible_host=probe-b.mesh.example.net  mesh_ipv6=fd00:dead:beef::2  site="site-b"
+```
+
+| Variable | Description |
+|---|---|
+| `ansible_host` | Hostname or IP used for SSH from the control node |
+| `mesh_ipv6` | The host's mesh VPN IPv6 address (Tailscale, netbird, etc.) — used for Prometheus scraping and TWAMP reflector discovery |
+| `site` | Short label for the host's physical or logical site. Always quote numeric-looking values: `site="809"` |
+
+The fleet topology JSON served to piccolo-perf nodes and the Prometheus scrape targets
+are both generated automatically from this single inventory. There is no separate
+`piccolo_perf_hosts` list to maintain.
+
+### Adding a host
+
+1. Add the host to `inventory/hosts.ini` with `mesh_ipv6=` and `site=`:
+
+   ```ini
+   [piccolo_perf]
+   new-probe  ansible_host=new-probe.mesh.example.net  mesh_ipv6=fd00:dead:beef::3  site="site-c"
+   ```
+
+   Add to `[prometheus_hosts]` too if it should run Prometheus.
+
+2. Run the add-host playbook:
+
+   ```bash
+   ansible-playbook -i inventory/hosts.ini playbooks/add-host.yml \
+     --limit new-probe --ask-vault-pass
+   ```
+
+   This automatically: distributes the wildcard cert, installs piccolo-perf, regenerates
+   the fleet config JSON (now including the new host), and updates all Prometheus scrape
+   configs.
+
+### Removing a host
+
+1. Run the decommission playbook **before** editing `hosts.ini`:
+
+   ```bash
+   ansible-playbook -i inventory/hosts.ini playbooks/decommission.yml \
+     --limit old-probe --ask-vault-pass
+   ```
+
+   This stops and disables piccolo-perf-exporter, removes the systemd unit, nftables
+   rules, TLS certs, and binary from the target host.
+
+2. Delete the host line from `inventory/hosts.ini`.
+
+3. Re-run `site.yml` to regenerate the fleet config JSON and Prometheus scrape configs
+   without the removed host:
+
+   ```bash
+   ansible-playbook -i inventory/hosts.ini playbooks/site.yml --ask-vault-pass
+   ```
+
+---
+
 ## Day-2 operations
-
-### Re-run after inventory changes
-
-Adding a host to `[piccolo_perf]` and re-running `site.yml` is sufficient. The roles
-are fully idempotent — hosts already at the correct state see zero changes.
 
 ### Certificate renewal
 
 Certbot's renewal timer (`piccolo-cert-renew.timer`) fires daily on the control node.
 When a cert is actually renewed (within 30 days of expiry), the deploy hook
-automatically runs `cert-distribute.yml`, which copies the new cert to every host and
-restarts the affected services only if the cert content changed.
+automatically runs `cert-distribute.yml` and `config-server.yml`, which copy the new
+cert to every host and restart affected services only if the cert content changed.
 
 To force an immediate renewal check:
 
@@ -277,13 +338,6 @@ To distribute a cert that was renewed outside Ansible (e.g., manually via certbo
 ansible-playbook -i inventory/hosts.ini playbooks/cert-distribute.yml \
   --ask-vault-pass
 ```
-
-### Expanding the fleet
-
-1. Add the new host to the appropriate groups in `inventory/hosts.ini`.
-2. Add it to `piccolo_perf_hosts` in `inventory/group_vars/all.yml`.
-3. Run `cert-distribute.yml` to push the existing cert to the new host.
-4. Run `site.yml` to deploy the stack.
 
 ### Updating piccolo-perf or Prometheus
 
@@ -300,6 +354,22 @@ and replace the binary if the version doesn't match.
 3. Run `ansible-playbook -i inventory/hosts.ini playbooks/prometheus.yml --ask-vault-pass`.
    The `web.config.yml` template will be redeployed and Prometheus restarted.
 
+### Re-running after config changes
+
+All roles are fully idempotent. Re-running `site.yml` at any time is safe — hosts
+already at the correct state see zero changes. Use targeted playbooks to limit scope:
+
+```bash
+# Only update piccolo-perf across the fleet
+ansible-playbook -i inventory/hosts.ini playbooks/piccolo-perf.yml --ask-vault-pass
+
+# Only update Prometheus scrape config and auth
+ansible-playbook -i inventory/hosts.ini playbooks/prometheus.yml --ask-vault-pass
+
+# Only regenerate the fleet config JSON
+ansible-playbook -i inventory/hosts.ini playbooks/config-server.yml --ask-vault-pass
+```
+
 ---
 
 ## Configuration reference
@@ -312,8 +382,12 @@ and replace the binary if the version doesn't match.
 | `mesh_domain` | `mesh.example.net` | Internal DNS domain |
 | `allowed_mesh_ifaces` | `[wt0, tailscale0]` | All interfaces whose inbound traffic should reach fleet services. Accepts any interface type: `wt0`, `tailscale0`, `eth0`, `zt0`, `wg0`, etc. nftables allows traffic from any listed interface and drops all others on fleet ports. |
 | `mesh_vpn_services` | `[tailscaled.service, netbird.service]` | systemd units listed in `After=`/`Wants=` for fleet services. Use `Wants=` (not `BindsTo=`) so services survive a VPN restart. |
-| `piccolo_perf_hosts` | see file | List of `{name, address, site}` dicts describing the fleet |
-| `piccolo_perf_measurements` | see file | List of measurement configs served to piccolo-perf |
+| `piccolo_perf_config_url` | `https://config.<mesh_domain>:8443/...` | URL piccolo-perf fetches its config from. Override if the default DNS name doesn't exist. |
+| `piccolo_perf_measurements` | see file | List of measurement configs served to all piccolo-perf nodes |
+
+Fleet host topology (names, addresses, sites) is defined entirely in `inventory/hosts.ini`
+via `mesh_ipv6=` and `site=` host variables on each `[piccolo_perf]` entry — there is no
+separate `piccolo_perf_hosts` list.
 
 ### `roles/piccolo_perf/defaults/main.yml`
 
