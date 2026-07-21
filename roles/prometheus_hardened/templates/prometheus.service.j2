@@ -10,7 +10,8 @@ ExecStart={{ prometheus_binary_path }} \
   --config.file={{ prometheus_config_dir }}/prometheus.yml \
   --storage.tsdb.path={{ prometheus_data_dir }} \
   --web.listen-address=[::]:{{ prometheus_web_port }} \
-  --web.config.file={{ prometheus_config_dir }}/web.config.yml
+  --web.config.file={{ prometheus_config_dir }}/web.config.yml \
+  --web.enable-admin-api
 Restart=on-failure
 RestartSec=10s
 NoNewPrivileges=true
