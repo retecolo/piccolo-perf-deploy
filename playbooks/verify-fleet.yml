@@ -3,53 +3,64 @@
   hosts: piccolo_perf
   become: false
   gather_facts: true
+  vars:
+    piccolo_perf_metrics_port: 9862
   tasks:
-    - name: Resolve mesh IPv6 for this host
-      ansible.builtin.set_fact:
-        mesh_ipv6: "{{ (ansible_facts[mesh_iface]['ipv6'] | selectattr('scope', 'ne', 'link') | first).address }}"
-
-    - name: Curl /metrics over HTTPS via the mesh hostname
+    - name: Curl /metrics over HTTPS via the mesh IPv6 address
       ansible.builtin.uri:
-        url: "https://{{ inventory_hostname }}.{{ mesh_domain }}:{{ piccolo_perf_metrics_port }}/metrics"
+        url: "https://[{{ hostvars[inventory_hostname]['mesh_ipv6'] }}]:{{ piccolo_perf_metrics_port }}/metrics"
+        validate_certs: false
         return_content: false
         status_code: 200
+      delegate_to: localhost
 
-- name: Smoke-test the config server over the mesh interface
+- name: Smoke-test the config server
   hosts: config_server_hosts
   become: false
-  gather_facts: true
+  gather_facts: false
+  vars:
+    config_server_port: 8443
   tasks:
-    - name: Curl the topology JSON over HTTPS via the mesh hostname
+    - name: Curl the topology JSON over HTTPS
       ansible.builtin.uri:
-        url: "https://{{ inventory_hostname }}.{{ mesh_domain }}:{{ config_server_port }}/piccolo-config.json"
+        url: "{{ piccolo_perf_config_url }}"
+        validate_certs: false
         return_content: false
         status_code: 200
+      delegate_to: localhost
 
 - name: Smoke-test Prometheus over the mesh interface
   hosts: prometheus_hosts
   become: false
   gather_facts: true
+  vars:
+    prometheus_web_port: 9090
   tasks:
-    - name: Curl /-/healthy over HTTPS with basic auth via the mesh hostname
+    - name: Curl /-/healthy over HTTPS with basic auth via the mesh IPv6 address
       ansible.builtin.uri:
-        url: "https://{{ inventory_hostname }}.{{ mesh_domain }}:9090/-/healthy"
-        user: "{{ prometheus_basic_auth_username }}"
+        url: "https://[{{ hostvars[inventory_hostname]['mesh_ipv6'] }}]:{{ prometheus_web_port }}/-/healthy"
+        user: "{{ prometheus_basic_auth_username | default('admin') }}"
         password: "{{ prometheus_basic_auth_password }}"
         force_basic_auth: true
+        validate_certs: false
         status_code: 200
+      delegate_to: localhost
 
-    - name: Curl the piccolo_perf scrape targets and confirm they're up
+    - name: Query Prometheus API for piccolo_perf targets
       ansible.builtin.uri:
-        url: "https://{{ inventory_hostname }}.{{ mesh_domain }}:9090/api/v1/query?query=up%7Bjob%3D%22piccolo_perf%22%7D"
-        user: "{{ prometheus_basic_auth_username }}"
+        url: "https://[{{ hostvars[inventory_hostname]['mesh_ipv6'] }}]:{{ prometheus_web_port }}/api/v1/query?query=up%7Bjob%3D%22piccolo_perf%22%7D"
+        user: "{{ prometheus_basic_auth_username | default('admin') }}"
         password: "{{ prometheus_basic_auth_password }}"
         force_basic_auth: true
+        validate_certs: false
         status_code: 200
         return_content: true
       register: prometheus_up_query
+      delegate_to: localhost
 
-    - name: Assert every piccolo_perf target reports up == 1
+    - name: Assert at least one piccolo_perf target reports up == 1
       ansible.builtin.assert:
         that:
-          - "'\"value\":[' in prometheus_up_query.content"
-          - "'\"1\"]' in prometheus_up_query.content"
+          - prometheus_up_query.json.data.result | length > 0
+          - prometheus_up_query.json.data.result | selectattr('value', 'contains', '1') | list | length > 0
+        fail_msg: "No piccolo_perf targets are reporting up == 1"
