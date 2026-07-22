@@ -261,15 +261,20 @@ probe-a  ansible_host=probe-a.mesh.example.net  mesh_ipv6=fd00:dead:beef::1  sit
 probe-b  ansible_host=probe-b.mesh.example.net  mesh_ipv6=fd00:dead:beef::2  site="site-b"
 ```
 
-| Variable | Description |
-|---|---|
-| `ansible_host` | Hostname or IP used for SSH from the control node |
-| `mesh_ipv6` | The host's mesh VPN IPv6 address (Tailscale, netbird, etc.) — used for Prometheus scraping and TWAMP reflector discovery |
-| `site` | Short label for the host's physical or logical site. Always quote numeric-looking values: `site="809"` |
+| Variable | Required | Description |
+|---|---|---|
+| `ansible_host` | yes | Hostname or IP used for SSH from the control node |
+| `mesh_ipv6` | yes | The host's mesh VPN IPv6 address (Tailscale, netbird, etc.) — used for Prometheus scraping and TWAMP reflector discovery |
+| `site` | yes | Short label for the host's physical or logical site. Always quote numeric-looking values: `site="809"` |
+| `piccolo_name` | no | Override the name piccolo-perf uses to identify this host in measurements. Defaults to the inventory hostname. Set this when the machine's OS hostname (`hostname` command) differs from the inventory name — piccolo-perf uses the OS hostname as the `source` label, so they must match for metrics to correlate correctly. Example: `piccolo_name=ztncui` for an inventory host named `ztvi-controller`. |
 
 The fleet topology JSON served to piccolo-perf nodes and the Prometheus scrape targets
 are both generated automatically from this single inventory. There is no separate
 `piccolo_perf_hosts` list to maintain.
+
+> **Tip:** verify a new host's OS hostname before adding it: `ssh user@host hostname`.
+> If it differs from the name you plan to use in inventory, set `piccolo_name=<os-hostname>`
+> on the host line.
 
 ### Adding a host
 

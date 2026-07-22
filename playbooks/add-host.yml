@@ -7,23 +7,66 @@
 #
 # Usage:
 #   ansible-playbook -i inventory/hosts.ini playbooks/add-host.yml \
-#     --limit <hostname> --ask-vault-pass
-#
-# What this does:
-#   1. Distributes the existing wildcard cert to the new host
-#   2. Installs and configures piccolo-perf on the new host
-#   3. Regenerates the fleet config JSON (now includes the new host)
-#   4. Regenerates Prometheus scrape configs on all prometheus_hosts
-#   5. Restarts affected services
+#     --limit jump-abq --ask-vault-pass
 
-- name: Distribute the wildcard cert to the new host
-  ansible.builtin.import_playbook: cert-distribute.yml
+- name: Fetch the wildcard cert from the cert issuer to the controller
+  hosts: cert_issuer_hosts
+  become: true
+  vars:
+    live_dir: "/etc/letsencrypt/live/{{ mesh_domain }}"
+  tasks:
+    - name: Fetch fullchain from cert issuer
+      ansible.builtin.fetch:
+        src: "{{ live_dir }}/fullchain.pem"
+        dest: "/tmp/piccolo-fleet-cert/fullchain.pem"
+        flat: true
 
-- name: Install piccolo-perf on the new host
+    - name: Fetch privkey from cert issuer
+      ansible.builtin.fetch:
+        src: "{{ live_dir }}/privkey.pem"
+        dest: "/tmp/piccolo-fleet-cert/privkey.pem"
+        flat: true
+      no_log: true
+
+- name: Install piccolo-perf on the new host (installs binary, creates user/group/dirs)
   hosts: "{{ ansible_limit | default('piccolo_perf') }}"
   become: true
   roles:
     - piccolo_perf
+
+- name: Push the wildcard cert to the new host
+  hosts: "{{ ansible_limit | default('piccolo_perf') }}"
+  become: true
+  vars:
+    cert_src_dir: "/tmp/piccolo-fleet-cert"
+    piccolo_perf_tls_dir: /etc/piccolo-perf/tls
+    piccolo_perf_cert_group: piccolo-perf-cert
+    piccolo_perf_service_name: piccolo-perf-exporter
+  tasks:
+    - name: Copy fullchain to new host
+      ansible.builtin.copy:
+        src: "{{ cert_src_dir }}/fullchain.pem"
+        dest: "{{ piccolo_perf_tls_dir }}/fullchain.pem"
+        owner: root
+        group: "{{ piccolo_perf_cert_group }}"
+        mode: "0640"
+      notify: restart piccolo-perf
+
+    - name: Copy privkey to new host
+      ansible.builtin.copy:
+        src: "{{ cert_src_dir }}/privkey.pem"
+        dest: "{{ piccolo_perf_tls_dir }}/privkey.pem"
+        owner: root
+        group: "{{ piccolo_perf_cert_group }}"
+        mode: "0640"
+      notify: restart piccolo-perf
+      no_log: true
+
+  handlers:
+    - name: restart piccolo-perf
+      ansible.builtin.systemd:
+        name: "{{ piccolo_perf_service_name }}"
+        state: restarted
 
 - name: Regenerate fleet config JSON to include the new host
   hosts: config_server_hosts
