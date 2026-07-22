@@ -3,6 +3,7 @@
 #
 # Prerequisites:
 #   - Host line added to [piccolo_perf] in inventory/hosts.ini with mesh_ipv6= and site=
+#   - Add to [prometheus_hosts] too if this host should run Prometheus
 #   - SSH access from the control node to the new host
 #
 # Usage:
@@ -28,13 +29,13 @@
         flat: true
       no_log: true
 
-- name: Install piccolo-perf on the new host (installs binary, creates user/group/dirs)
+- name: Install piccolo-perf on the new host
   hosts: "{{ ansible_limit | default('piccolo_perf') }}"
   become: true
   roles:
     - piccolo_perf
 
-- name: Push the wildcard cert to the new host
+- name: Push the wildcard cert to the new piccolo-perf host
   hosts: "{{ ansible_limit | default('piccolo_perf') }}"
   become: true
   vars:
@@ -68,13 +69,59 @@
         name: "{{ piccolo_perf_service_name }}"
         state: restarted
 
+- name: Install Prometheus on the new host (if in prometheus_hosts)
+  hosts: "{{ ansible_limit | default('prometheus_hosts') }}"
+  become: true
+  tasks:
+    - name: Skip hosts not in prometheus_hosts group
+      ansible.builtin.meta: end_host
+      when: "'prometheus_hosts' not in group_names"
+  roles:
+    - prometheus_hardened
+
+- name: Push the wildcard cert to the new Prometheus host
+  hosts: "{{ ansible_limit | default('prometheus_hosts') }}"
+  become: true
+  vars:
+    cert_src_dir: "/tmp/piccolo-fleet-cert"
+    tls_cert_dir_prometheus: /etc/prometheus/tls
+  tasks:
+    - name: Skip hosts not in prometheus_hosts group
+      ansible.builtin.meta: end_host
+      when: "'prometheus_hosts' not in group_names"
+
+    - name: Copy fullchain to prometheus host
+      ansible.builtin.copy:
+        src: "{{ cert_src_dir }}/fullchain.pem"
+        dest: "{{ tls_cert_dir_prometheus }}/fullchain.pem"
+        owner: prometheus
+        group: prometheus
+        mode: "0640"
+      notify: restart prometheus
+
+    - name: Copy privkey to prometheus host
+      ansible.builtin.copy:
+        src: "{{ cert_src_dir }}/privkey.pem"
+        dest: "{{ tls_cert_dir_prometheus }}/privkey.pem"
+        owner: prometheus
+        group: prometheus
+        mode: "0640"
+      notify: restart prometheus
+      no_log: true
+
+  handlers:
+    - name: restart prometheus
+      ansible.builtin.systemd:
+        name: prometheus
+        state: restarted
+
 - name: Regenerate fleet config JSON to include the new host
   hosts: config_server_hosts
   become: true
   roles:
     - config_server
 
-- name: Regenerate Prometheus scrape config to include the new host
+- name: Regenerate Prometheus scrape config on all existing Prometheus hosts
   hosts: prometheus_hosts
   become: true
   roles:

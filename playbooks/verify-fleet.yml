@@ -36,6 +36,10 @@
   vars:
     prometheus_web_port: 9090
   tasks:
+    - name: Skip hosts without mesh_ipv6 defined
+      ansible.builtin.meta: end_host
+      when: hostvars[inventory_hostname]['mesh_ipv6'] is not defined
+
     - name: Curl /-/healthy over HTTPS with basic auth via the mesh IPv6 address
       ansible.builtin.uri:
         url: "https://[{{ hostvars[inventory_hostname]['mesh_ipv6'] }}]:{{ prometheus_web_port }}/-/healthy"
