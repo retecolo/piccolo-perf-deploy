@@ -523,6 +523,90 @@ stale, insecure Prometheus, and the verify assertions confirm it is remediated.
 
 ---
 
+## Troubleshooting
+
+### Spot-check a host's metrics
+
+Check what metric names piccolo-perf is currently emitting to a Prometheus instance:
+
+```bash
+curl -sk --user admin:<password> \
+  'https://[<prometheus-mesh-ipv6>]:9090/api/v1/label/__name__/values' | \
+  python3 -m json.tool | grep piccolo
+```
+
+Query a specific metric across all sources (replace `piccolo_twamp_rtt_avg_ms` with
+any metric name from the list above):
+
+```bash
+curl -sk --user admin:<password> \
+  'https://[<prometheus-mesh-ipv6>]:9090/api/v1/query?query=piccolo_twamp_rtt_avg_ms' | \
+  python3 -m json.tool | grep -E '(source|target|site|value)' | head -40
+```
+
+Query metrics for a specific source host:
+
+```bash
+curl -sk --user admin:<password> \
+  'https://[<prometheus-mesh-ipv6>]:9090/api/v1/query?query=piccolo_twamp_rtt_avg_ms{source="attic-probe"}' | \
+  python3 -m json.tool | grep -E '(target|value)'
+```
+
+Check a host's exporter directly (bypasses Prometheus entirely — useful to confirm
+piccolo-perf is running and collecting before Prometheus has scraped it):
+
+```bash
+curl -sk https://[<host-mesh-ipv6>]:9862/metrics | grep piccolo_twamp | head -20
+```
+
+Check which targets Prometheus is currently scraping and their health:
+
+```bash
+curl -sk --user admin:<password> \
+  'https://[<prometheus-mesh-ipv6>]:9090/api/v1/targets' | \
+  python3 -m json.tool | grep -E '(scrapeUrl|health|lastError)' | paste - - -
+```
+
+### New measurements not appearing in Grafana
+
+New measurement types produce new metric names (`piccolo_<type>_*`) that do not
+automatically appear in existing Grafana panels. After adding a new measurement type
+to `piccolo_perf_measurements` and redeploying:
+
+1. Confirm the metrics exist in Prometheus using the label query above.
+2. Add new panels to the Grafana dashboard manually using the new metric names.
+3. Use `source`, `target`, and `site` label filters to match existing dashboard variables.
+
+### Prometheus not scraping a host
+
+```bash
+# Check target health on a Prometheus host
+curl -sk --user admin:<password> \
+  'https://[<prometheus-mesh-ipv6>]:9090/api/v1/targets' | \
+  python3 -m json.tool | grep -E '(scrapeUrl|health|lastError)' | paste - - -
+
+# Check nftables is allowing traffic on the target host
+ssh configbot@<host> sudo nft list table inet piccolo_fleet_perf
+
+# Check piccolo-perf is running on the target host
+ssh configbot@<host> sudo systemctl status piccolo-perf-exporter --no-pager | head -5
+```
+
+### piccolo-perf exporter not starting
+
+```bash
+ssh configbot@<host> sudo journalctl -u piccolo-perf-exporter -n 20 --no-pager
+```
+
+Common causes:
+- **`Cannot load TLS cert/key`** — cert not distributed yet; run `cert-distribute.yml --limit <host>`
+- **`Cannot fetch initial config`** — config server unreachable or returning invalid JSON;
+  check `piccolo_perf_config_url` and verify with `curl -sk <url>`
+- **`JSON parse error: cannot unmarshal number into site`** — `site=` value in `hosts.ini`
+  is unquoted integer; change to `site="809"`
+
+---
+
 ## Role testing
 
 Each role ships a Molecule scenario using the Docker driver with a systemd-capable
