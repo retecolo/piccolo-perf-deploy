@@ -4,7 +4,7 @@
   "hide_skipped": false,
   "hosts": [
 {% for host in groups['piccolo_perf'] %}
-    { "name": {{ host | to_json }}, "address": {{ hostvars[host]['mesh_ipv6'] | to_json }}, "site": {{ hostvars[host]['site'] | default('unknown') | string | to_json }} }{{ "" if loop.last else "," }}
+    { "name": {{ (hostvars[host]['piccolo_name'] | default(host)) | to_json }}, "address": {{ hostvars[host]['mesh_ipv6'] | to_json }}, "site": {{ hostvars[host]['site'] | default('unknown') | string | to_json }} }{{ "" if loop.last else "," }}
 {% endfor %}
   ],
   "hub_spoke": { "enabled": false, "hub": "" },
