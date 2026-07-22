@@ -323,6 +323,45 @@ are both generated automatically from this single inventory. There is no separat
 
 ## Day-2 operations
 
+### Adding or changing measurement types
+
+Measurement configuration lives in `piccolo_perf_measurements` in
+`inventory/group_vars/all.yml`. After editing it:
+
+1. **Redeploy the fleet config JSON** so nodes pick up the new configuration:
+
+   ```bash
+   ansible-playbook -i inventory/hosts.ini playbooks/config-server.yml \
+     --ask-vault-pass
+   ```
+
+2. **Restart piccolo-perf** on all fleet hosts to reload immediately (otherwise
+   each node waits up to the `config_refresh` interval, default 5 minutes):
+
+   ```bash
+   ansible -i inventory/hosts.ini piccolo_perf -b --ask-vault-pass \
+     -m systemd -a "name=piccolo-perf-exporter state=restarted"
+   ```
+
+3. **Add panels to Grafana** for any new measurement types. New measurement types
+   produce new metric names — they do not automatically appear in existing dashboard
+   panels. piccolo-perf metrics follow the naming convention `piccolo_<type>_*`.
+   For example:
+   - TWAMP: `piccolo_twamp_rtt_avg_ms`, `piccolo_twamp_loss_pct`, etc.
+   - DNS: `piccolo_dns_dns_rtt_ms`, `piccolo_dns_dns_success`
+
+   To find what metrics a new measurement type is emitting, query Prometheus directly:
+
+   ```bash
+   curl -sk --user admin:<password> \
+     'https://[<prometheus-mesh-ipv6>]:9090/api/v1/label/__name__/values' | \
+     python3 -m json.tool | grep piccolo
+   ```
+
+   Then add a new panel to the Grafana dashboard using the relevant metric name.
+   Use `source`, `target`, and `site` label filters to match the dashboard variable
+   selectors already in use by existing panels.
+
 ### Certificate renewal
 
 Certbot's renewal timer (`piccolo-cert-renew.timer`) fires daily on the control node.
