@@ -7,8 +7,12 @@
 #   - SSH access from the control node to the new host
 #
 # Usage:
-#   ansible-playbook -i inventory/hosts.ini playbooks/add-host.yml \
-#     --limit jump-abq --ask-vault-pass
+#   ansible-playbook -u configbot --private-key=~/.ssh/id_rsa_configbot \
+#     -i inventory/hosts.ini playbooks/add-host.yml \
+#     -e new_host=rdns4 --ask-vault-pass
+#
+# The -e new_host= variable targets the new host plays without restricting
+# the cert fetch (which must run on cert_issuer_hosts/localhost regardless).
 
 - name: Fetch the wildcard cert from the cert issuer to the controller
   hosts: cert_issuer_hosts
@@ -16,6 +20,12 @@
   vars:
     live_dir: "/etc/letsencrypt/live/{{ mesh_domain }}"
   tasks:
+    - name: Fail if new_host is not specified
+      ansible.builtin.fail:
+        msg: "Specify the new host with -e new_host=<hostname>"
+      when: new_host is not defined
+      run_once: true
+
     - name: Fetch fullchain from cert issuer
       ansible.builtin.fetch:
         src: "{{ live_dir }}/fullchain.pem"
@@ -30,13 +40,13 @@
       no_log: true
 
 - name: Install piccolo-perf on the new host
-  hosts: "{{ ansible_limit | default('piccolo_perf') }}"
+  hosts: "{{ new_host }}"
   become: true
   roles:
     - piccolo_perf
 
 - name: Push the wildcard cert to the new piccolo-perf host
-  hosts: "{{ ansible_limit | default('piccolo_perf') }}"
+  hosts: "{{ new_host }}"
   become: true
   vars:
     cert_src_dir: "/tmp/piccolo-fleet-cert"
@@ -70,7 +80,7 @@
         state: restarted
 
 - name: Install Prometheus on the new host (if in prometheus_hosts)
-  hosts: "{{ ansible_limit | default('prometheus_hosts') }}"
+  hosts: "{{ new_host }}"
   become: true
   tasks:
     - name: Skip hosts not in prometheus_hosts group
@@ -80,7 +90,7 @@
     - prometheus_hardened
 
 - name: Push the wildcard cert to the new Prometheus host
-  hosts: "{{ ansible_limit | default('prometheus_hosts') }}"
+  hosts: "{{ new_host }}"
   become: true
   vars:
     cert_src_dir: "/tmp/piccolo-fleet-cert"

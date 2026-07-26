@@ -291,8 +291,12 @@ are both generated automatically from this single inventory. There is no separat
 
    ```bash
    ansible-playbook -i inventory/hosts.ini playbooks/add-host.yml \
-     --limit new-probe --ask-vault-pass
+     -e new_host=new-probe --ask-vault-pass
    ```
+
+   Use `-e new_host=` (not `--limit`) — the playbook must fetch the cert from
+   `cert_issuer_hosts` (localhost) regardless of which host is being added, and
+   `--limit` would prevent that play from running.
 
    This automatically: distributes the wildcard cert, installs piccolo-perf, regenerates
    the fleet config JSON (now including the new host), and updates all Prometheus scrape
