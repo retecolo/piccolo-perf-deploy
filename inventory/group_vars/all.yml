@@ -27,6 +27,14 @@ piccolo_perf_hosts:
   - { name: probe-a, address: "fd00:dead:beef::1", site: site-a }
   - { name: probe-b, address: "fd00:dead:beef::2", site: site-b }
 
+# Measurement schedule — each entry becomes one runMeasurerScheduler goroutine.
+# All probe types except bw and dns require CAP_NET_RAW (set by AmbientCapabilities).
+# For bandwidth tests: every probe starts a TCP sink on port 5201 automatically;
+# peers connect to it. No separate server process is needed. Do not set
+# prefer_iperf3 to true unless all peers also have iperf3-server running on 5201.
 piccolo_perf_measurements:
-  - { type: twamp, interval: 60s, targets: all, burst_size: 5, burst_interval: 200ms, packet_timeout: 5s }
-  - { type: dns, interval: 120s, resolvers: ["2620:fe::fe", "9.9.9.9"], names: ["example.com"] }
+  - { type: twamp,    interval: 60s,   targets: all, burst_size: 5, burst_interval: 200ms, packet_timeout: 5s }
+  - { type: bw,       interval: 300s,  targets: all, duration: 5s,  prefer_iperf3: false }
+  - { type: trace,    interval: 600s,  targets: all, max_hops: 30,  probes_per_hop: 1, timeout: 2s }
+  - { type: mtu,      interval: 600s,  targets: all, ceiling: 1500 }
+  - { type: dns,      interval: 120s,  resolvers: ["2620:fe::fe", "9.9.9.9"], names: ["example.com"] }
