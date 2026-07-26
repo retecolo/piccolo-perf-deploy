@@ -12,7 +12,6 @@ ExecStart={{ piccolo_perf_binary_path }} exporter \
   -metrics-tls-key {{ piccolo_perf_tls_dir }}/privkey.pem
 Restart=on-failure
 RestartSec=10s
-AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
 NoNewPrivileges=true
 DynamicUser=yes
 SupplementaryGroups={{ piccolo_perf_cert_group }}
