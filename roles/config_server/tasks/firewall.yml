@@ -3,6 +3,7 @@
   ansible.builtin.package:
     name: nftables
     state: present
+  when: firewall_mode not in ['none', 'mtls']
 
 - name: Ensure nftables.d include directory exists
   ansible.builtin.file:
@@ -11,6 +12,7 @@
     owner: root
     group: root
     mode: "0755"
+  when: firewall_mode not in ['none', 'mtls']
 
 - name: Ensure the include directive is present in nftables.conf
   ansible.builtin.shell: |
@@ -19,6 +21,7 @@
   args:
     executable: /bin/bash
   changed_when: false
+  when: firewall_mode not in ['none', 'mtls']
 
 - name: Deploy the config-server mesh-only firewall rule
   ansible.builtin.template:
@@ -28,14 +31,16 @@
     group: root
     mode: "0644"
   register: config_server_nft
+  when: firewall_mode not in ['none', 'mtls']
 
 - name: Enable nftables
   ansible.builtin.systemd:
     name: nftables
     enabled: true
     state: started
+  when: firewall_mode not in ['none', 'mtls']
 
 - name: Apply the updated ruleset
   ansible.builtin.command: nft -f /etc/nftables.conf
-  when: config_server_nft.changed
+  when: firewall_mode not in ['none', 'mtls'] and config_server_nft.changed
   changed_when: true
