@@ -1,3 +1,4 @@
+{% if firewall_mode == 'interface' %}
 table inet piccolo_fleet_perf {
   set allowed_ifaces {
     type ifname
@@ -11,3 +12,19 @@ table inet piccolo_fleet_perf {
     udp dport {{ piccolo_perf_twamp_port }} drop
   }
 }
+{% elif firewall_mode == 'source_prefix' %}
+table inet piccolo_fleet_perf {
+  set allowed_sources {
+    type ipv6_addr
+    flags interval
+    elements = { {{ allowed_source_prefixes | join(', ') }} }
+  }
+
+  chain input {
+    type filter hook input priority filter; policy accept;
+    ip6 saddr @allowed_sources accept
+    tcp dport {{ piccolo_perf_metrics_port }} drop
+    udp dport {{ piccolo_perf_twamp_port }} drop
+  }
+}
+{% endif %}
