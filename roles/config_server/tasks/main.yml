@@ -1,14 +1,37 @@
 ---
-- name: Resolve this host's mesh VPN IPv6 address
-  ansible.builtin.set_fact:
-    mesh_ipv6: "{{ (ansible_facts[mesh_iface]['ipv6'] | selectattr('scope', 'ne', 'link') | first).address }}"
+- name: Warn if deprecated mesh_ipv6 variable is in use
+  ansible.builtin.debug:
+    msg: "WARNING: mesh_ipv6 is deprecated — rename to probe_address in inventory/hosts.ini"
+  when: hostvars[inventory_hostname]['mesh_ipv6'] is defined and
+        hostvars[inventory_hostname]['probe_address'] is not defined
 
-- name: Fail fast if no mesh IPv6 address was found
+- name: Set probe_address from inventory (preferred path)
+  ansible.builtin.set_fact:
+    probe_address: "{{ hostvars[inventory_hostname]['probe_address'] }}"
+  when: hostvars[inventory_hostname]['probe_address'] is defined
+
+- name: Set probe_address from deprecated mesh_ipv6 (backward compat)
+  ansible.builtin.set_fact:
+    probe_address: "{{ hostvars[inventory_hostname]['mesh_ipv6'] }}"
+  when: hostvars[inventory_hostname]['probe_address'] is not defined and
+        hostvars[inventory_hostname]['mesh_ipv6'] is defined
+
+- name: Derive probe_address from mesh interface (VPN fallback)
+  ansible.builtin.set_fact:
+    probe_address: "{{ (ansible_facts[mesh_iface]['ipv6'] | selectattr('scope', 'ne', 'link') | first).address }}"
+  when: hostvars[inventory_hostname]['probe_address'] is not defined and
+        hostvars[inventory_hostname]['mesh_ipv6'] is not defined and
+        mesh_iface is defined
+
+- name: Fail fast if probe_address could not be determined
   ansible.builtin.assert:
     that:
-      - mesh_ipv6 is defined
-      - mesh_ipv6 | length > 0
-    fail_msg: "No non-link-local IPv6 address found on mesh interface '{{ mesh_iface }}'"
+      - probe_address is defined
+      - probe_address | length > 0
+    fail_msg: >
+      probe_address is not set for host '{{ inventory_hostname }}'.
+      Add probe_address=<ipv6-or-ipv4> to this host's line in inventory/hosts.ini,
+      or set mesh_iface in group_vars/all.yml to enable interface-based discovery.
 
 - name: Install nginx
   ansible.builtin.package:
