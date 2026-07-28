@@ -63,8 +63,10 @@
       delegate_to: localhost
 
     - name: Query Prometheus API for piccolo_perf targets
+      vars:
+        _prom_host: "{{ '[' + _verify_addr + ']' if ':' in _verify_addr else _verify_addr }}"
       ansible.builtin.uri:
-        url: "https://{{ '[' + _verify_addr + ']' if ':' in _verify_addr else _verify_addr }}:{{ prometheus_web_port }}/api/v1/query?query=up%7Bjob%3D%22piccolo_perf%22%7D"
+        url: "https://{{ _prom_host }}:{{ prometheus_web_port }}/api/v1/query?query=up%7Bjob%3D%22piccolo_perf%22%7D"
         user: "{{ prometheus_basic_auth_username | default('admin') }}"
         password: "{{ prometheus_basic_auth_password }}"
         force_basic_auth: true

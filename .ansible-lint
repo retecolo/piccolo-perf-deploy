@@ -1,6 +1,10 @@
 ---
 exclude_paths:
   - roles/*/molecule/
+  # These playbooks require runtime parameters (-e new_host= and --limit);
+  # ansible-lint cannot resolve their dynamic hosts: values without them.
+  - playbooks/add-host.yml
+  - playbooks/decommission.yml
 
 warn_list:
   - no-handler
