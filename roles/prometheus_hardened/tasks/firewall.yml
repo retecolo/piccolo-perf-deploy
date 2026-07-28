@@ -52,7 +52,7 @@
     state: started
   when: firewall_mode not in ['none', 'mtls']
 
-- name: Apply the updated ruleset
-  ansible.builtin.command: nft -f /etc/nftables.conf
+- name: Apply the updated prometheus ruleset
+  ansible.builtin.command: nft -f /etc/nftables.d/prometheus.nft
   when: firewall_mode not in ['none', 'mtls'] and prometheus_nft.changed
   changed_when: true

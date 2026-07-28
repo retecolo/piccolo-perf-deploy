@@ -52,7 +52,7 @@
     state: started
   when: firewall_mode not in ['none', 'mtls']
 
-- name: Apply the updated ruleset
-  ansible.builtin.command: nft -f /etc/nftables.conf
+- name: Apply the updated config-server ruleset
+  ansible.builtin.command: nft -f /etc/nftables.d/config-server.nft
   when: firewall_mode not in ['none', 'mtls'] and config_server_nft.changed
   changed_when: true
