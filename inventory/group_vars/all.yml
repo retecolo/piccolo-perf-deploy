@@ -15,6 +15,17 @@ allowed_mesh_ifaces:
   - wt0
   - tailscale0
 
+# Controls how nftables rules restrict access to fleet service ports.
+# interface     — allow inbound only from interfaces in allowed_mesh_ifaces (VPN deployments)
+# source_prefix — allow inbound only from IPv6 prefixes in allowed_source_prefixes (non-VPN, IPv6 only)
+# none          — skip nftables deployment entirely; trust host's existing firewall
+# mtls          — skip nftables deployment; security via TLS client certs (future)
+firewall_mode: interface
+
+# IPv6 source prefixes/addresses allowed when firewall_mode is source_prefix.
+# Accepts CIDRs (e.g. 2001:db8::/32) or individual addresses (e.g. 2001:db8::1).
+allowed_source_prefixes: []
+
 # systemd units to wait for before starting fleet services.
 # Listed in After=/Wants= (not BindsTo=) so services survive a VPN restart.
 mesh_vpn_services:

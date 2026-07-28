@@ -1,14 +1,22 @@
 ---
-- name: Smoke-test piccolo-perf exporters over the mesh interface
+- name: Smoke-test piccolo-perf exporters
   hosts: piccolo_perf
   become: false
   gather_facts: true
   vars:
     piccolo_perf_metrics_port: 9862
   tasks:
-    - name: Curl /metrics over HTTPS via the mesh IPv6 address
+    - name: Set probe_address for verify (with mesh_ipv6 fallback)
+      ansible.builtin.set_fact:
+        _verify_addr: "{{ hostvars[inventory_hostname]['probe_address'] | default(hostvars[inventory_hostname]['mesh_ipv6'] | default('')) }}"
+
+    - name: Skip hosts without a probe address
+      ansible.builtin.meta: end_host
+      when: _verify_addr == ''
+
+    - name: Curl /metrics over HTTPS
       ansible.builtin.uri:
-        url: "https://[{{ hostvars[inventory_hostname]['mesh_ipv6'] }}]:{{ piccolo_perf_metrics_port }}/metrics"
+        url: "https://{{ '[' + _verify_addr + ']' if ':' in _verify_addr else _verify_addr }}:{{ piccolo_perf_metrics_port }}/metrics"
         validate_certs: false
         return_content: false
         status_code: 200
@@ -29,20 +37,24 @@
         status_code: 200
       delegate_to: localhost
 
-- name: Smoke-test Prometheus over the mesh interface
+- name: Smoke-test Prometheus
   hosts: prometheus_hosts
   become: false
   gather_facts: true
   vars:
     prometheus_web_port: 9090
   tasks:
-    - name: Skip hosts without mesh_ipv6 defined
-      ansible.builtin.meta: end_host
-      when: hostvars[inventory_hostname]['mesh_ipv6'] is not defined
+    - name: Set probe_address for verify (with mesh_ipv6 fallback)
+      ansible.builtin.set_fact:
+        _verify_addr: "{{ hostvars[inventory_hostname]['probe_address'] | default(hostvars[inventory_hostname]['mesh_ipv6'] | default('')) }}"
 
-    - name: Curl /-/healthy over HTTPS with basic auth via the mesh IPv6 address
+    - name: Skip hosts without a probe address
+      ansible.builtin.meta: end_host
+      when: _verify_addr == ''
+
+    - name: Curl /-/healthy over HTTPS with basic auth
       ansible.builtin.uri:
-        url: "https://[{{ hostvars[inventory_hostname]['mesh_ipv6'] }}]:{{ prometheus_web_port }}/-/healthy"
+        url: "https://{{ '[' + _verify_addr + ']' if ':' in _verify_addr else _verify_addr }}:{{ prometheus_web_port }}/-/healthy"
         user: "{{ prometheus_basic_auth_username | default('admin') }}"
         password: "{{ prometheus_basic_auth_password }}"
         force_basic_auth: true
@@ -51,8 +63,10 @@
       delegate_to: localhost
 
     - name: Query Prometheus API for piccolo_perf targets
+      vars:
+        _prom_host: "{{ '[' + _verify_addr + ']' if ':' in _verify_addr else _verify_addr }}"
       ansible.builtin.uri:
-        url: "https://[{{ hostvars[inventory_hostname]['mesh_ipv6'] }}]:{{ prometheus_web_port }}/api/v1/query?query=up%7Bjob%3D%22piccolo_perf%22%7D"
+        url: "https://{{ _prom_host }}:{{ prometheus_web_port }}/api/v1/query?query=up%7Bjob%3D%22piccolo_perf%22%7D"
         user: "{{ prometheus_basic_auth_username | default('admin') }}"
         password: "{{ prometheus_basic_auth_password }}"
         force_basic_auth: true

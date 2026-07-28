@@ -1,10 +1,20 @@
+{%- macro addr_url(a) -%}
+{{ '[' + a + ']' if ':' in a else a }}
+{%- endmacro -%}
+{%- set ns = namespace(rows=[]) -%}
+{% for host in groups['piccolo_perf'] %}
+{%   set pa = hostvars[host]['probe_address'] | default(hostvars[host]['mesh_ipv6'] | default('')) %}
+{%   if pa %}
+{%     set ns.rows = ns.rows + [{'name': (hostvars[host]['piccolo_name'] | default(host)), 'addr': pa, 'site': (hostvars[host]['site'] | default('unknown') | string)}] %}
+{%   endif %}
+{% endfor %}
 {
   "topology": "mesh",
   "config_refresh": "5m",
   "hide_skipped": false,
   "hosts": [
-{% for host in groups['piccolo_perf'] %}
-    { "name": {{ (hostvars[host]['piccolo_name'] | default(host)) | to_json }}, "address": {{ hostvars[host]['mesh_ipv6'] | to_json }}, "site": {{ hostvars[host]['site'] | default('unknown') | string | to_json }} }{{ "" if loop.last else "," }}
+{% for row in ns.rows %}
+    { "name": {{ row.name | to_json }}, "address": {{ row.addr | to_json }}, "site": {{ row.site | to_json }} }{{ "" if loop.last else "," }}
 {% endfor %}
   ],
   "hub_spoke": { "enabled": false, "hub": "" },

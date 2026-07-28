@@ -2,7 +2,7 @@
 # Add one or more hosts to the piccolo-perf fleet.
 #
 # Prerequisites:
-#   - Host line added to [piccolo_perf] in inventory/hosts.ini with mesh_ipv6= and site=
+#   - Host line added to [piccolo_perf] in inventory/hosts.ini with probe_address= and site=
 #   - Add to [prometheus_hosts] too if this host should run Prometheus
 #   - SSH access from the control node to the new host
 #

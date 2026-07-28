@@ -13,9 +13,9 @@ Control node (cert_issuer_hosts)
   └── cert-distribute.yml  →  pushes cert to fleet on renewal
 
 Fleet hosts
-  ├── piccolo-perf-exporter   [mesh_ipv6]:9862   HTTPS/TLS
-  ├── nginx config server     [mesh_ipv6]:8443   HTTPS/TLS
-  └── prometheus (selected)   [mesh_ipv6]:9090   HTTPS/TLS + basic auth
+  ├── piccolo-perf-exporter   [probe_address]:9862   HTTPS/TLS
+  ├── nginx config server     [probe_address]:8443   HTTPS/TLS
+  └── prometheus (selected)   [probe_address]:9090   HTTPS/TLS + basic auth
 
 nftables on every host: 9862, 8443, 9090 blocked on all interfaces except the mesh VPN
 ```
@@ -257,16 +257,16 @@ in `[piccolo_perf]` requires two inline variables:
 
 ```ini
 [piccolo_perf]
-probe-a  ansible_host=probe-a.mesh.example.net  mesh_ipv6=fd00:dead:beef::1  site="site-a"
-probe-b  ansible_host=probe-b.mesh.example.net  mesh_ipv6=fd00:dead:beef::2  site="site-b"
+probe-a  ansible_host=probe-a.mesh.example.net  probe_address=fd00:dead:beef::1  site="site-a"
+probe-b  ansible_host=probe-b.mesh.example.net  probe_address=fd00:dead:beef::2  site="site-b"
 ```
 
 | Variable | Required | Description |
 |---|---|---|
 | `ansible_host` | yes | Hostname or IP used for SSH from the control node |
-| `mesh_ipv6` | yes | The host's mesh VPN IPv6 address (Tailscale, netbird, etc.) — used for Prometheus scraping and TWAMP reflector discovery |
+| `probe_address` | yes | The address Prometheus scrapes and piccolo-perf uses for peer discovery. Use a native IPv6 address for non-VPN deployments or a VPN-assigned IPv6 for mesh deployments. IPv4 is accepted when IPv6 is unavailable. Deprecated alias: `mesh_ipv6` (still works, emits a warning). |
 | `site` | yes | Short label for the host's physical or logical site. Always quote numeric-looking values: `site="809"` |
-| `piccolo_name` | no | Override the name piccolo-perf uses to identify this host in measurements. Defaults to the inventory hostname. Set this when the machine's OS hostname (`hostname` command) differs from the inventory name — piccolo-perf uses the OS hostname as the `source` label, so they must match for metrics to correlate correctly. Example: `piccolo_name=ztncui` for an inventory host named `ztvi-controller`. |
+| `piccolo_name` | no | Override the name piccolo-perf uses to identify this host. Defaults to the inventory hostname. Set when the OS hostname differs from the inventory name. |
 
 The fleet topology JSON served to piccolo-perf nodes and the Prometheus scrape targets
 are both generated automatically from this single inventory. There is no separate
@@ -278,11 +278,11 @@ are both generated automatically from this single inventory. There is no separat
 
 ### Adding a host
 
-1. Add the host to `inventory/hosts.ini` with `mesh_ipv6=` and `site=`:
+1. Add the host to `inventory/hosts.ini` with `probe_address=` and `site=`:
 
    ```ini
    [piccolo_perf]
-   new-probe  ansible_host=new-probe.mesh.example.net  mesh_ipv6=fd00:dead:beef::3  site="site-c"
+   new-probe  ansible_host=new-probe.mesh.example.net  probe_address=fd00:dead:beef::3  site="site-c"
    ```
 
    Add to `[prometheus_hosts]` too if it should run Prometheus.
@@ -418,6 +418,30 @@ ansible-playbook -i inventory/hosts.ini playbooks/prometheus.yml --ask-vault-pas
 ansible-playbook -i inventory/hosts.ini playbooks/config-server.yml --ask-vault-pass
 ```
 
+### Non-VPN (native IPv6) deployment
+
+For hosts reachable via native public IPv6 with no VPN mesh:
+
+1. In `inventory/hosts.ini`, use `probe_address=` with the host's public IPv6 address:
+
+   ```ini
+   [piccolo_perf]
+   probe-a  ansible_host=probe-a.example.net  probe_address=2001:db8::1  site="site-a"
+   ```
+
+2. In `inventory/group_vars/all.yml`, set `firewall_mode` and `allowed_source_prefixes`:
+
+   ```yaml
+   firewall_mode: source_prefix
+   allowed_source_prefixes:
+     - 2001:db8::/32   # your fleet's IPv6 prefix
+   mesh_vpn_services: []  # no VPN daemons to wait for
+   ```
+
+3. Run `site.yml` normally — all other configuration is unchanged.
+
+**Mixed fleets** (some hosts on VPN, some on native IPv6) are not supported in a single inventory. Use separate inventories with different `firewall_mode` values.
+
 ---
 
 ## Configuration reference
@@ -430,11 +454,13 @@ ansible-playbook -i inventory/hosts.ini playbooks/config-server.yml --ask-vault-
 | `mesh_domain` | `mesh.example.net` | Internal DNS domain |
 | `allowed_mesh_ifaces` | `[wt0, tailscale0]` | All interfaces whose inbound traffic should reach fleet services. Accepts any interface type: `wt0`, `tailscale0`, `eth0`, `zt0`, `wg0`, etc. nftables allows traffic from any listed interface and drops all others on fleet ports. |
 | `mesh_vpn_services` | `[tailscaled.service, netbird.service]` | systemd units listed in `After=`/`Wants=` for fleet services. Use `Wants=` (not `BindsTo=`) so services survive a VPN restart. |
+| `firewall_mode` | `interface` | Controls nftables port restriction. `interface`: allow from interfaces in `allowed_mesh_ifaces` (VPN). `source_prefix`: allow from IPv6 prefixes in `allowed_source_prefixes` (non-VPN). `none`: skip nftables entirely. `mtls`: skip nftables (future). |
+| `allowed_source_prefixes` | `[]` | IPv6 CIDRs or addresses allowed when `firewall_mode: source_prefix`. Example: `[2001:db8::/32, 2001:db8::1]` |
 | `piccolo_perf_config_url` | `https://config.<mesh_domain>:8443/...` | URL piccolo-perf fetches its config from. Override if the default DNS name doesn't exist. |
 | `piccolo_perf_measurements` | see file | List of measurement configs served to all piccolo-perf nodes |
 
 Fleet host topology (names, addresses, sites) is defined entirely in `inventory/hosts.ini`
-via `mesh_ipv6=` and `site=` host variables on each `[piccolo_perf]` entry — there is no
+via `probe_address=` and `site=` host variables on each `[piccolo_perf]` entry — there is no
 separate `piccolo_perf_hosts` list.
 
 ### `roles/piccolo_perf/defaults/main.yml`
