@@ -2,32 +2,41 @@
 # Decommission one or more hosts from the piccolo-perf fleet.
 #
 # Run this BEFORE removing the host from inventory/hosts.ini.
-# After this playbook completes, delete the host line from hosts.ini
-# and re-run site.yml to propagate the removal to surviving fleet hosts.
+# The playbook removes piccolo-perf from the target host and then
+# automatically updates the fleet config JSON and Prometheus scrape config
+# on the surviving infrastructure hosts.
 #
 # Usage:
-#   ansible-playbook -i inventory/hosts.ini playbooks/decommission.yml \
-#     --limit <hostname> --ask-vault-pass
+#   ansible-playbook -u configbot --private-key=~/.ssh/id_rsa_configbot \
+#     -i inventory/hosts.ini playbooks/decommission.yml \
+#     -e target_host=<hostname> --ask-vault-pass
+#
+# The -e target_host= variable targets the decommission play without
+# restricting the config/prometheus propagation plays (which must run on
+# config_server_hosts and prometheus_hosts regardless).
+# Do NOT use --limit — it would block the propagation plays from running.
 #
 # What this does:
 #   1. Stops and disables piccolo-perf-exporter on the target host
 #   2. Removes the nftables piccolo-perf firewall table
 #   3. Removes the piccolo-perf systemd unit
 #   4. Removes TLS certs and config from the host
+#   5. Regenerates the fleet config JSON on config_server_hosts
+#   6. Regenerates the Prometheus scrape config on prometheus_hosts
 #
 # After running this playbook:
-#   1. Delete the host line from inventory/hosts.ini
-#   2. Run: ansible-playbook -i inventory/hosts.ini playbooks/site.yml --ask-vault-pass
-#      (regenerates fleet config JSON and Prometheus scrape config without the removed host)
+#   1. Delete the decommissioned host line from inventory/hosts.ini
+#   2. Commit and push the inventory change (git add inventory/hosts.ini && git commit && git push)
 
 - name: Decommission piccolo-perf from target hosts
-  hosts: "{{ ansible_limit | default('') }}"
+  hosts: "{{ target_host | default('') }}"
   become: true
   tasks:
-    - name: Fail if no --limit specified
+    - name: Fail if target_host is not specified
       ansible.builtin.fail:
-        msg: "Run with --limit <hostname> to avoid accidentally decommissioning the entire fleet."
-      when: ansible_limit is not defined
+        msg: "Specify the host to decommission with -e target_host=<hostname>"
+      when: target_host is not defined
+      run_once: true
 
     - name: Stop and disable piccolo-perf-exporter
       ansible.builtin.systemd:
@@ -71,3 +80,33 @@
     - name: reload systemd
       ansible.builtin.systemd:
         daemon_reload: true
+
+# These two plays regenerate fleet-wide config so the removed host is no
+# longer visible in Grafana or polled by Prometheus. They run against the
+# surviving infrastructure hosts (not the decommissioned one), so they must
+# come AFTER the host has been soft-removed above but while it is still in
+# hosts.ini so Ansible can reach config_server_hosts and prometheus_hosts.
+#
+# After these plays finish: delete the host line from inventory/hosts.ini.
+- name: Regenerate fleet config JSON to remove the decommissioned host
+  hosts: config_server_hosts
+  become: true
+  roles:
+    - config_server
+
+- name: Regenerate Prometheus scrape config to remove the decommissioned host
+  hosts: prometheus_hosts
+  become: true
+  roles:
+    - prometheus_hardened
+
+- name: Remind operator to remove host from inventory
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Post-decommission checklist
+      ansible.builtin.debug:
+        msg:
+          - "Decommission complete. Next steps:"
+          - "  1. Delete the host line from inventory/hosts.ini"
+          - "  2. Commit and push the inventory change (git add inventory/hosts.ini && git commit && git push)"
