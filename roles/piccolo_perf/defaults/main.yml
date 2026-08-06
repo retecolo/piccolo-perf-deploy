@@ -1,5 +1,5 @@
 ---
-piccolo_perf_version: "1.0.9"
+piccolo_perf_version: "1.0.10"
 piccolo_perf_github_repo: retecolo/piccolo-perf
 piccolo_perf_binary_path: /usr/local/bin/piccolo-perf
 piccolo_perf_metrics_port: 9862
