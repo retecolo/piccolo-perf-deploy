@@ -32,12 +32,6 @@ mesh_vpn_services:
   - tailscaled.service
   - netbird.service
 
-# Fleet topology, shared by the config_server role (serves it as JSON) and
-# used by prometheus_hardened's scrape config. Edit to match your fleet.
-piccolo_perf_hosts:
-  - { name: probe-a, address: "fd00:dead:beef::1", site: site-a }
-  - { name: probe-b, address: "fd00:dead:beef::2", site: site-b }
-
 # Measurement schedule — each entry becomes one runMeasurerScheduler goroutine.
 # All probe types except bw and dns require CAP_NET_RAW (set by AmbientCapabilities).
 # For bandwidth tests: every probe starts a TCP sink on port 5201 automatically;

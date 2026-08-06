@@ -8,4 +8,4 @@ piccolo_perf_probe_mode: background
 piccolo_perf_tls_dir: /etc/piccolo-perf/tls
 piccolo_perf_cert_group: piccolo-perf-cert
 piccolo_perf_service_name: piccolo-perf-exporter
-piccolo_perf_config_url: "https://config.{{ mesh_domain }}:{{ config_server_port | default(8443) }}/piccolo-config.json"
+piccolo_perf_config_url: "https://config.{{ mesh_domain }}:{{ config_server_port | default(8443) }}/piccolo-perf-config.json"
