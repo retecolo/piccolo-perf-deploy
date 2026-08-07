@@ -5,6 +5,29 @@
   vars:
     live_dir: "/etc/letsencrypt/live/{{ mesh_domain }}"
   tasks:
+    - name: Verify the source privkey is a PEM TLS key (not an SSH key)
+      ansible.builtin.command: openssl pkey -in {{ live_dir }}/privkey.pem -noout
+      changed_when: false
+      register: privkey_check
+      failed_when: privkey_check.rc != 0
+
+    - name: Clean staging directory to prevent stale files being distributed
+      ansible.builtin.file:
+        path: /tmp/piccolo-fleet-cert
+        state: absent
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Create fresh staging directory
+      ansible.builtin.file:
+        path: /tmp/piccolo-fleet-cert
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
     - name: Fetch fullchain from cert issuer
       ansible.builtin.fetch:
         src: "{{ live_dir }}/fullchain.pem"
@@ -17,6 +40,13 @@
         dest: "/tmp/piccolo-fleet-cert/privkey.pem"
         flat: true
       no_log: true
+
+    - name: Verify the fetched privkey is a valid PEM TLS key
+      ansible.builtin.command: openssl pkey -in /tmp/piccolo-fleet-cert/privkey.pem -noout
+      changed_when: false
+      delegate_to: localhost
+      become: false
+      run_once: true
 
 - name: Distribute the wildcard certificate to the fleet
   hosts: piccolo_perf:prometheus_hosts:config_server_hosts
@@ -42,8 +72,8 @@
       ansible.builtin.file:
         path: "{{ tls_cert_dir_prometheus }}"
         state: directory
-        owner: root
-        group: root
+        owner: prometheus
+        group: prometheus
         mode: "0750"
       when: "'prometheus_hosts' in group_names"
 
